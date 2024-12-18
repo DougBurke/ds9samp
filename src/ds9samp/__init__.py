@@ -114,7 +114,7 @@ class Connection:
         # rather than sending the message and continuing before it has
         # been handled by DS9.
         #
-        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
+        out = self.ds9.ecall_and_wait(self.client, "ds9.set",
                                       timeout=str(int(self.timeout)),
                                       cmd=command)
 
@@ -180,6 +180,7 @@ def start(name: str | None = None,
     names = set(gkeys) & set(skeys)
 
     if len(names) == 0:
+        ds9.disconnect()
         raise OSError("Unable to find a SAMP client that "
                       "supports ds9.get/set")
 
@@ -193,10 +194,12 @@ def start(name: str | None = None,
         if client in names:
             name = client
         else:
+            ds9.disconnect()
             raise ValueError(f"client name {client} is not valid")
 
     else:
         if len(names) > 1:
+            ds9.disconnect()
             raise OSError("Unable to support multiple DS9 SAMP clients. Try setting the client parameter.")
 
         name = names.pop()
