@@ -51,7 +51,9 @@ class Connection:
             ) -> str | None:
         """Call ds9.get for the given command and arguments.
 
-        If the call fails then a ValueError is raised.
+        If the call fails then an error message is displayed (to
+        stdout) and None is returned. This call will raise an error if
+        there is a SAMP commmunication problem.
 
         Parameters
         ----------
@@ -83,7 +85,8 @@ class Connection:
                 emsg = "Unknown DS9 error"
 
             if status == "samp.error":
-                raise ValueError(emsg)
+                print(f"ERROR: {emsg}")
+                return None
 
             print(f"WARNING: {emsg}")
 
@@ -102,8 +105,10 @@ class Connection:
             ) -> None:
         """Call ds9.set for the given command and arguments.
 
-        If the call fails then a ValueError is raised. The assumption
-        here is that ds9.set never returns any information.
+        If the call fails then an error message is displayed (to
+        stdout). The assumption here is that ds9.set never returns any
+        information. This call will raise an error if there is a SAMP
+        commmunication problem.
 
         Parameters
         ----------
@@ -142,7 +147,7 @@ class Connection:
             print(f"WARNING: {emsg}")
             return
 
-        raise ValueError(emsg)
+        print(f"ERROR: {emsg}")
 
 
 def start(name: str | None = None,
