@@ -17,7 +17,7 @@ import importlib.metadata
 
 from astropy import samp
 
-__all__ = ["ds9samp"]
+__all__ = ["ds9samp", "list_ds9"]
 
 
 VERSION = importlib.metadata.version("ds9samp")
@@ -252,3 +252,26 @@ def ds9samp(name: str | None = None,
         yield conn
     finally:
         end(conn)
+
+
+def list_ds9() -> list[str]:
+    """Return the SAMP client names of all the SAMP-connected DS9s.
+
+    This is only needed when ds9samp errors out because there are
+    multiple SAMP clients available. This routine lets a user find out
+    what names can be used for the client argument.
+
+    """
+
+    temp = samp.SAMPIntegratedClient(name="ds9samp-list",
+                                     description="Identify DS9 clients",
+                                     metadata={"ds9samp-list.version": VERSION})
+    temp.connect()
+    try:
+        gkeys = temp.get_subscribed_clients("ds9.get").keys()
+        skeys = temp.get_subscribed_clients("ds9.set").keys()
+    finally:
+        temp.disconnect()
+
+    keys = set(gkeys) & set(skeys)
+    return sorted(keys)
