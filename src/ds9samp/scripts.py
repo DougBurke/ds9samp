@@ -3,7 +3,7 @@
 from optparse import OptionParser
 import sys
 
-from ds9samp import ds9samp, VERSION
+from ds9samp import ds9samp, list_ds9, VERSION
 
 
 def parse():
@@ -71,3 +71,20 @@ def main_set():
     client, timeout, command = parse()
     with ds9samp(client=client) as ds9:
         ds9.set(command, timeout=timeout)
+
+
+@handle_error(name="list")
+def main_list():
+    """Call list_ds9"""
+
+    clients = list_ds9()
+    nclients = len(clients)
+    if nclients == 0:
+        raise OSError("There are no DS9 clients connected to the SAMP hub.")
+
+    if nclients == 1:
+        print(f"There is one DS9 client: {clients[0]}")
+        return
+
+    names = " ".join(clients)
+    print(f"There are {nclients} DS9 clients: {names}")
