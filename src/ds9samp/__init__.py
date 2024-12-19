@@ -46,7 +46,8 @@ class Connection:
         return f"Connection to DS9 {version} (client {self.client})"
 
     def get(self,
-            command: str
+            command: str,
+            timeout: int | None = None
             ) -> str | None:
         """Call ds9.get for the given command and arguments.
 
@@ -56,6 +57,9 @@ class Connection:
         ----------
         command
            The DS9 command to call, e.g. "cmap"
+        timeout: optional
+           Over-ride the default timeout setting. Use 0 to remove
+           any timeout.
 
         Returns
         -------
@@ -65,10 +69,10 @@ class Connection:
 
         """
 
-        out = self.ds9.ecall_and_wait(self.client,
-                                      "ds9.get",
-                                      timeout=str(int(self.timeout)),
-                                      cmd=command)
+        tout = self.timeout if timeout is None else timeout
+        tout_str = str(int(tout))
+        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
+                                      timeout=tout_str, cmd=command)
 
         status = out["samp.status"]
         if status != "samp.ok":
@@ -93,7 +97,8 @@ class Connection:
             return None
 
     def set(self,
-            command: str
+            command: str,
+            timeout: int | None = None
             ) -> None:
         """Call ds9.set for the given command and arguments.
 
@@ -104,6 +109,9 @@ class Connection:
         ----------
         command
            The DS9 command to call, e.g. "cmap viridis"
+        timeout: optional
+           Over-ride the default timeout setting. Use 0 to remove
+           any timeout.
 
         """
 
@@ -114,9 +122,10 @@ class Connection:
         # rather than sending the message and continuing before it has
         # been handled by DS9.
         #
+        tout = self.timeout if timeout is None else timeout
+        tout_str = str(int(tout))
         out = self.ds9.ecall_and_wait(self.client, "ds9.set",
-                                      timeout=str(int(self.timeout)),
-                                      cmd=command)
+                                      timeout=tout_str, cmd=command)
 
         status = out["samp.status"]
         if status == "samp.ok":

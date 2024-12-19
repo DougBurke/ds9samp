@@ -56,8 +56,7 @@ def main_get():
 
     client, timeout, command = parse()
     with ds9samp(client=client) as ds9:
-        ds9.timeout = timeout
-        out = ds9.get(command)
+        out = ds9.get(command, timeout=timeout)
 
     if out is None:
         print("Command succeeded.")
@@ -71,5 +70,4 @@ def main_set():
 
     client, timeout, command = parse()
     with ds9samp(client=client) as ds9:
-        ds9.timeout = timeout
-        ds9.set(command)
+        ds9.set(command, timeout=timeout)
