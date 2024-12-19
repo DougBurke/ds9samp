@@ -246,8 +246,7 @@ with ds9samp() as ds9:
 ### 3D Data Cube
 
 This will create a file called `3d.gif` in the current working
-directory (well, it would but the image3d.fits file is currently
-missing from the DS9 site):
+directory:
 
 ```python
 from pathlib import Path
@@ -257,6 +256,7 @@ from ds9samp import ds9samp
 this_dir = Path().resolve()
 
 with ds9samp() as ds9:
+    ds9.set("frame delete all")
     ds9.set(f"cd {this_dir}")
     ds9.set("3d")
     ds9.set("url http://ds9.si.edu/download/data/image3d.fits")
