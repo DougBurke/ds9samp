@@ -87,6 +87,12 @@ The get and set tools allow you to make a single `ds9.get` or
 `ds9.set` call, and the last one is useful if there are multiple
 DS9 instances connected to the SAMP hub.
 
+If the tools error out then the output message will include some
+colorized text (in red), unless
+
+- the [NO_COLOR environment variable](https://no-color.org/) is set,
+- or the output is not a TTY (e.g. it is being piped to a file).
+
 #### ds9samp_get
 
 ```

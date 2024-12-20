@@ -1,6 +1,16 @@
-"""Provide simple one-show commands to set/get DS9 data."""
+"""Provide simple one-show commands to set/get DS9 data.
+
+Error messages will include color (red) unless
+
+ - the NO_COLOR environment variable is set, following
+   https://no-color.org/
+
+ - the output is not a TTY (e.g. it is being piped to a file)
+
+"""
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+import os
 import sys
 
 from ds9samp import ds9samp, list_ds9, VERSION
@@ -29,6 +39,24 @@ def debug(msg):
     print(f"# {msg}")
 
 
+def add_color(txt):
+    """Allow ANSI color escape codes unless NO_COLOR env var is set
+    or sys.stderr is not a TTY.
+
+    See https://no-color.org/
+
+    Is it worth allowing these colors to be customized?
+    """
+
+    if not sys.stderr.isatty():
+        return txt
+
+    if os.getenv('NO_COLOR') is not None:
+        return txt
+
+    return f"\033[1;31m{txt}\033[0;0m"
+
+
 def handle_error(name):
     """Convert a traceback into a more-manageable error."""
 
@@ -37,13 +65,14 @@ def handle_error(name):
             try:
                 return fn(*args, **kwargs)
             except Exception as exc:
-                emsg = f"# ds9samp_{name}: ERROR: {exc}\n"
+                emsg = add_color(f"# ds9samp_{name}:") + \
+                    f" ERROR {exc}\n"
                 sys.stderr.write(emsg)
                 sys.exit(1)
 
             except KeyboardInterrupt:
-                sys.stderr.write("# ds9samp_{name}: "
-                                 "Keyboard interrupt (control c)\n")
+                sys.stderr.write(add_color("# ds9samp_{name}:") +
+                                 " Keyboard interrupt (control c)\n")
                 sys.exit(1)
 
         new_fn.__doc__ = fn.__doc__
