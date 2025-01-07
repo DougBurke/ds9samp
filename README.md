@@ -188,8 +188,7 @@ Examples:
 
     % ds9samp_set 'frame frameno 2'
     % ds9samp_set @commands
-    % ds9samp_set 'frame delete all
-frame new'
+    % ds9samp_set 'frame delete all\nframe new'
 
 positional arguments:
   command
