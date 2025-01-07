@@ -290,7 +290,7 @@ with ds9samp() as ds9:
 ### 3D Data Cube
 
 This will create a file called `3d.gif` in the current working
-directory:
+directory (rather than the directory whre ds9 was started):
 
 ```python
 from pathlib import Path
@@ -323,7 +323,11 @@ with ds9samp() as ds9:
 
     print("Click anwhere in the image")
     coord = ds9.get("imexam wcs icrs", timeout=0)
-    print(f" -> {coord}")
+    x, y = [float(c) for c in coord.split()]
+    print(f" -> '{coord}'")
+    print(f" -> x={x}  y={y}")
 ```
 
-If a `get` call returns a value then it is returned as a string.
+If a `get` call returns a value then it is returned as a string,
+and the format depends on the command (in this case a pair of
+space-separated coordinates).
