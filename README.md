@@ -61,10 +61,38 @@ would not be useful for the expected work flow.
 Exceptions will be raised if there are "low-level" SAMP problems,
 such as the DS9 instance or the SAMP hub closing down.
 
+### Timeouts
+
+The default timeout for calls is 10 seconds. This can be changed
+either by setting the `timeout` parameter for the `get` and `set`
+calls, or by setting the `timeout` attribute of the `ds9samp`
+object. Note that the timeout value is an integer, and should be 0 or
+greater.
+
+```python
+import ds9samp
+
+with ds9samp.ds9samp() as ds9:
+    # Reduce the timeout to 1 second
+    ds9.timeout = 1
+
+    ...
+
+    # Remove the timeout
+    ds9.timeout = 0
+
+    ...
+
+    # Over-ride the timeout value
+    ds9.set("cmap viridis", timeout=4)
+```
+
 ### Direct access
 
-If direct access is needed - that is, one where you are required to
-close down the connection - then you can use
+If direct access is needed - for example you are using a Python
+notebook and need the connection to last longer than a single cell -
+then you can use the `start` and `close` routines directly. For
+example:
 
 ```python
 import ds9samp
@@ -79,13 +107,41 @@ finally:
     ds9samp.close(ds9)
 ```
 
+### Direct access to the SAMP connection
+
+This module is a very-small wrapper around the AstroPy SAMP
+code. The `ds9` attribute of the object returned by either
+`ds9samp.ds9samp` or `ds9samp.start` is a
+[SampIntegratedClient](https://docs.astropy.org/en/stable/api/astropy.samp.SAMPIntegratedClient.html)
+if you feel the need to use it.
+
+The `client` attribute gives the name of the DS9 instance, as set by
+the SAMP hub, and the `metadata` attrbute is a dictionary of the
+metadata reported by the DS9 instance. For example:
+
+```python
+from ds9samp import ds9samp
+with ds9samp() as ds9:
+    print(f"DS9 client = {ds9.client}")
+    print(ds9.metadata["samp.name"])
+    print(ds9.metadata["ds9.version"])
+```
+
+can display
+
+```
+DS9 client = c1
+ds9
+8.6
+```
+
 ### Command-line tools
 
 The module comes with three command-line tools:
 
-- ds9samp_get
-- ds9samp_set
-- ds9samp_list
+- `ds9samp_get`
+- `ds9samp_set`
+- `ds9samp_list`
 
 The get and set tools allow you to make a single `ds9.get` or
 `ds9.set` call, and the last one is useful if there are multiple
@@ -154,8 +210,7 @@ Examples:
 
     % ds9samp_set 'frame frameno 2'
     % ds9samp_set @commands
-    % ds9samp_set 'frame delete all
-frame new'
+    % ds9samp_set 'frame delete all\nframe new'
 
 positional arguments:
   command
@@ -185,9 +240,13 @@ As an example:
 
 ```
 % ds9samp_list
-There is one DS9 client: c1
+# ds9samp_list: ERROR Unable to find a running SAMP Hub.
+% ds9 &
 % ds9samp_list
-There are 2 DS9 clients: c1 c7
+There is one DS9 client: c1
+& ds9 &
+% ds9samp_list
+There are 2 DS9 clients: c1 c3
 ```
 
 ### What happens if there are multiple DS9 instances?
@@ -221,11 +280,14 @@ which accepts the client name reported by `ds9samp_list`.
 
 ## Examples
 
+These examples are based on the examples in the
+[DS9+Astropy
+page](https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy).
+
 ### RGB Images
 
-This is the same as the "RGB Images" section of the [DS9+Astropy
-page](https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy),
-with several simplifications:
+This is the same as the "RGB Images" section, with several
+simplifications:
 
  - the "client name" of the DS9 application does not need to be
    specified, as this is handled for you
@@ -256,7 +318,7 @@ with ds9samp() as ds9:
 ### 3D Data Cube
 
 This will create a file called `3d.gif` in the current working
-directory:
+directory (rather than the directory whre ds9 was started):
 
 ```python
 from pathlib import Path
@@ -289,7 +351,11 @@ with ds9samp() as ds9:
 
     print("Click anwhere in the image")
     coord = ds9.get("imexam wcs icrs", timeout=0)
-    print(f" -> {coord}")
+    x, y = [float(c) for c in coord.split()]
+    print(f" -> '{coord}'")
+    print(f" -> x={x}  y={y}")
 ```
 
-If a `get` call returns a value then it is returned as a string.
+If a `get` call returns a value then it is returned as a string,
+and the format depends on the command (in this case a pair of
+space-separated coordinates).
