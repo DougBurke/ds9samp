@@ -139,9 +139,9 @@ ds9
 
 The module comes with three command-line tools:
 
-- ds9samp_get
-- ds9samp_set
-- ds9samp_list
+- `ds9samp_get`
+- `ds9samp_set`
+- `ds9samp_list`
 
 The get and set tools allow you to make a single `ds9.get` or
 `ds9.set` call, and the last one is useful if there are multiple
@@ -240,9 +240,13 @@ As an example:
 
 ```
 % ds9samp_list
-There is one DS9 client: c1
+# ds9samp_list: ERROR Unable to find a running SAMP Hub.
+% ds9 &
 % ds9samp_list
-There are 2 DS9 clients: c1 c7
+There is one DS9 client: c1
+& ds9 &
+% ds9samp_list
+There are 2 DS9 clients: c1 c3
 ```
 
 ### What happens if there are multiple DS9 instances?
