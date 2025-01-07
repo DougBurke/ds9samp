@@ -1,7 +1,11 @@
 # DS9 and Python
 
-DS9 can be controlled with XPA and SAMP. The AstroPy project
-provides a SAMP interface, so it can be used to control DS9.
+[DS9](https://ds9.si.edu/) can be controlled with XPA and
+[SAMP](https://www.ivoa.net/documents/SAMP/). The AstroPy project
+provides a
+[SAMP interface](https://docs.astropy.org/en/stable/samp/index.html),
+so it can be used to
+[control DS9](https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy).
 However, using the SAMP interface is likely to be annoying,
 so can we make something a bit more user friendly?
 
