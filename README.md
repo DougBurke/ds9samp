@@ -280,11 +280,14 @@ which accepts the client name reported by `ds9samp_list`.
 
 ## Examples
 
+These examples are based on the examples in the
+[DS9+Astropy
+page](https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy).
+
 ### RGB Images
 
-This is the same as the "RGB Images" section of the [DS9+Astropy
-page](https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy),
-with several simplifications:
+This is the same as the "RGB Images" section, with several
+simplifications:
 
  - the "client name" of the DS9 application does not need to be
    specified, as this is handled for you
