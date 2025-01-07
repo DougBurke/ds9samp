@@ -89,8 +89,10 @@ with ds9samp.ds9samp() as ds9:
 
 ### Direct access
 
-If direct access is needed - that is, one where you are required to
-close down the connection - then you can use
+If direct access is needed - for example you are using a Python
+notebook and need the connection to last longer than a single cell -
+then you can use the `start` and `close` routines directly. For
+example:
 
 ```python
 import ds9samp
@@ -112,6 +114,26 @@ code. The `ds9` attribute of the object returned by either
 `ds9samp.ds9samp` or `ds9samp.start` is a
 [SampIntegratedClient](https://docs.astropy.org/en/stable/api/astropy.samp.SAMPIntegratedClient.html)
 if you feel the need to use it.
+
+The `client` attribute gives the name of the DS9 instance, as set by
+the SAMP hub, and the `metadata` attrbute is a dictionary of the
+metadata reported by the DS9 instance. For example:
+
+```python
+from ds9samp import ds9samp
+with ds9samp() as ds9:
+    print(f"DS9 client = {ds9.client}")
+    print(ds9.metadata["samp.name"])
+    print(ds9.metadata["ds9.version"])
+```
+
+can display
+
+```
+DS9 client = c1
+ds9
+8.6
+```
 
 ### Command-line tools
 
