@@ -61,6 +61,32 @@ would not be useful for the expected work flow.
 Exceptions will be raised if there are "low-level" SAMP problems,
 such as the DS9 instance or the SAMP hub closing down.
 
+### Timeouts
+
+The default timeout for calls is 10 seconds. This can be changed
+either by setting the `timeout` parameter for the `get` and `set`
+calls, or by setting the `timeout` attribute of the `ds9samp`
+object. Note that the timeout value is an integer, and should be 0 or
+greater.
+
+```python
+import ds9samp
+
+with ds9samp.ds9samp() as ds9:
+    # Reduce the timeout to 1 second
+    ds9.timeout = 1
+
+    ...
+
+    # Remove the timeout
+    ds9.timeout = 0
+
+    ...
+
+    # Over-ride the timeout value
+    ds9.set("cmap viridis", timeout=4)
+```
+
 ### Direct access
 
 If direct access is needed - that is, one where you are required to
@@ -78,6 +104,14 @@ try:
 finally:
     ds9samp.close(ds9)
 ```
+
+### Direct access to the SAMP connection
+
+This module is a very-small wrapper around the AstroPy SAMP
+code. The `ds9` attribute of the object returned by either
+`ds9samp.ds9samp` or `ds9samp.start` is a
+[SampIntegratedClient](https://docs.astropy.org/en/stable/api/astropy.samp.SAMPIntegratedClient.html)
+if you feel the need to use it.
 
 ### Command-line tools
 
