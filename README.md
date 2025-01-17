@@ -9,6 +9,11 @@ so it can be used to
 However, using the SAMP interface is likely to be annoying,
 so can we make something a bit more user friendly?
 
+There is also the
+[astropy-samp-ds9](https://pypi.org/project/astropy-samp-ds9/)
+Python package that should be reviewed to see if it better meets
+your needs.
+
 ## Usage
 
 The aim is to support the "simple" case where
