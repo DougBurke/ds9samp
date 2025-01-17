@@ -96,7 +96,7 @@ with ds9samp.ds9samp() as ds9:
 
 If direct access is needed - for example you are using a Python
 notebook and need the connection to last longer than a single cell -
-then you can use the `start` and `close` routines directly. For
+then you can use the `start` and `end` routines directly. For
 example:
 
 ```python
@@ -109,7 +109,7 @@ try:
     ...
 
 finally:
-    ds9samp.close(ds9)
+    ds9samp.end(ds9)
 ```
 
 ### Direct access to the SAMP connection
