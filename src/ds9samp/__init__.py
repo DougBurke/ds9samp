@@ -55,7 +55,7 @@ written as:
         ds9.set("zscale")
         ds9.set("cmap viridis")
     finally:
-        ds9.close()
+        ds9.end()
 
 Timeouts
 --------
