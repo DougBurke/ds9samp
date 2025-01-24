@@ -121,7 +121,7 @@ code. The `ds9` attribute of the object returned by either
 if you feel the need to use it.
 
 The `client` attribute gives the name of the DS9 instance, as set by
-the SAMP hub, and the `metadata` attrbute is a dictionary of the
+the SAMP hub, and the `metadata` attribute is a dictionary of the
 metadata reported by the DS9 instance. For example:
 
 ```python

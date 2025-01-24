@@ -10,8 +10,7 @@ assumes certain things, such as:
 - and commands are to be executed synchronously (i.e. each command is
   executed and acknowledged by DS9 before the next command is processed).
 
-For more complex cases see the `DS9 SAMP documentation <See
-https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy>`_
+For more complex cases see the `DS9 SAMP documentation <https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy>`_
 and the `AstroPy SAMP module
 <https://docs.astropy.org/en/stable/samp/>`_.
 
