@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/ds9samp.svg)](https://badge.fury.io/py/ds9samp)
+
 # DS9 and Python
 
 [DS9](https://ds9.si.edu/) can be controlled with XPA and
@@ -121,7 +123,7 @@ code. The `ds9` attribute of the object returned by either
 if you feel the need to use it.
 
 The `client` attribute gives the name of the DS9 instance, as set by
-the SAMP hub, and the `metadata` attrbute is a dictionary of the
+the SAMP hub, and the `metadata` attribute is a dictionary of the
 metadata reported by the DS9 instance. For example:
 
 ```python
@@ -285,7 +287,7 @@ which accepts the client name reported by `ds9samp_list`.
 
 ## Examples
 
-These examples are based on the examples in the
+Some of these examples are based on the examples in the
 [DS9+Astropy
 page](https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy).
 
@@ -364,3 +366,38 @@ with ds9samp() as ds9:
 If a `get` call returns a value then it is returned as a string,
 and the format depends on the command (in this case a pair of
 space-separated coordinates).
+
+### Sending a NumPy array
+
+Version 0.0.3 added the `send_array` call, which will create a
+temporary file and use that to send a NumPy array to DS9. As an
+example, view this 2D elliptical gaussian:
+
+```python
+import numpy as np
+import ds9samp
+
+# Create a rotated elliptical gaussian
+x0 = 2200
+x1 = 3510
+theta = 1.2
+ellip = 0.4
+fwhm = 400
+
+# The grid is x=2000...2500 and y=3000...4000 (inclusive).
+#
+x1s, x0s = np.mgrid[3000:4001, 2000:2501]
+
+# Create the "delta" values
+dx0 = (x0s - x0) * np.cos(theta) + (x1s - x1) * np.sin(theta)
+dx1 = (x1s - x1) * np.cos(theta) - (x0s - x0) * np.sin(theta)
+
+# Create the gaussian image
+r2 = ((dx0 * (1 - ellip))**2  + dx1**2) / (fwhm * (1 - ellip))**2
+img = np.exp(-4 * np.log(2) * r2)
+
+# Send it to DS9
+with ds9samp.ds9samp() as ds9:
+    ds9.send_array(img)
+    ds9.set("cmap viridis")
+```
