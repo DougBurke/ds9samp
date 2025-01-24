@@ -56,6 +56,37 @@ written as:
     finally:
         ds9.end()
 
+Sending images directly
+-----------------------
+
+It is possible to send DS9 the contents of a NumPy array directly
+by using the `NumPy memmap
+<https://numpy.org/doc/stable/reference/generated/numpy.memmap.html>`_
+call to create a temporary file. This has been automated with the
+`send_array` call. For example:
+
+    import numpy as np
+    import ds9samp
+    # Create a rotated elliptical gaussian
+    x0 = 2200
+    x1 = 3510
+    theta = 1.2
+    ellip = 0.4
+    fwhm = 400
+    x1s, x0s = np.mgrid[3000:4001, 2000:2501]
+    dx0 = (x0s - x0) * np.cos(theta) + (x1s - x1) * np.sin(theta)
+    dx1 = (x1s - x1) * np.cos(theta) - (x0s - x0) * np.sin(theta)
+    r2 = ((dx0 * (1 - ellip))**2  + dx1**2) / (fwhm * (1 - ellip))**2
+    img = np.exp(-4 * np.log(2) * r2)
+    # Send it to DS9
+    with ds9samp.ds9samp() as ds9:
+        ds9.send_array(img)
+        ds9.set("cmap viridis")
+
+For more complex cases the creation of the memmap-ed file should be
+done manually, as described in the `DS9 example
+<https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy>`_.
+
 Timeouts
 --------
 
@@ -88,6 +119,9 @@ with a command like
 
 from contextlib import contextmanager
 import importlib.metadata
+import tempfile
+
+import numpy as np
 
 from astropy import samp
 
@@ -222,6 +256,95 @@ class Connection:
             return
 
         print(f"ERROR: {emsg}")
+
+    def send_array(self,
+                   img: np.ndarray,
+                   timeout: int | None = None
+                   ) -> None:
+        """Send the array to DS9.
+
+        This creates a temporary file to store the data,
+        sends the data, and then deletes the file.
+
+        Parameters
+        ----------
+        img:
+           The 2D data to send.
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        """
+
+        # Map between NumPy and DS9 storage fields.
+        #
+        arr = np_to_array(img)
+        with tempfile.NamedTemporaryFile(prefix="ds9samp",
+                                         suffix=".arr") as fh:
+            fp = np.memmap(fh, mode='w+', dtype=img.dtype,
+                           shape=img.shape)
+            fp[:] = img
+            fp.flush()
+
+            # Should this over-ride the filename as it is going to be
+            # invalid? I am not sure that it is possible.
+            #
+            cmd = f"array {fh.name}{arr}"
+            self.set(cmd, timeout=timeout)
+
+
+# From https://ds9.si.edu/doc/ref/file.html the array command says
+#    xdim=value
+#    ydim=value
+#    zdim=value # default is a depth of 1
+#    dim=value
+#    dims=value
+#    bitpix=[8|16|-16|32|64|-32|-64]
+#    skip=value # must be even, most must be factor of 4
+#    arch|endian=[big|bigendian|little|littleendian]
+#
+def np_to_array(img: np.ndarray) -> str:
+    """Convert from NumPy data type to DS9 settings."""
+
+    # For now restrict to 2D data only
+    #
+    if img.ndim != 2:
+        raise ValueError(f"img must be 2D, sent {img.ndim}D")
+
+    ny, nx = img.shape
+    bpix = dtype_to_bitpix(img.dtype)
+    out = f"xdim={nx},ydim={ny},bitpix={bpix}"
+
+    # Is this needed?
+    match img.dtype.byteorder:
+        case '<':
+            out += ",arch=little"
+        case '>':
+            out += ",arch=big"
+        case _:  # handle native and not-applicable
+            pass
+
+    return f"[{out}]"
+
+
+def dtype_to_bitpix(dtype: np.dtype) -> int:
+    """Convert the data type to DS9/FITS BITPIX setting."""
+
+    # Not trying to be clever here. Can we just piggy back on astropy
+    # instead?
+    #
+    size = dtype.itemsize
+    if np.issubdtype(dtype, np.integer):
+        # Unfortunately unsigned types are not going to be handled
+        # well here for those elements with the MSB/LSB set. Should
+        # we warn the user in this case or error out?
+        #
+        return size * 8
+
+    if np.issubdtype(dtype, np.floating):
+        return size * -8
+
+    raise ValueError(f"Unsupported dtype: {dtype}")
 
 
 def start(name: str | None = None,
