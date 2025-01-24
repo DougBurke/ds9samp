@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/ds9samp.svg)](https://badge.fury.io/py/ds9samp)
+
 # DS9 and Python
 
 [DS9](https://ds9.si.edu/) can be controlled with XPA and
