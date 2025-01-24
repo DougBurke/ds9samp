@@ -17,6 +17,8 @@ from ds9samp import ds9samp, list_ds9, VERSION
 
 
 def parse(desc):
+    """Common parser"""
+
     usage = "%(prog)s [options] command"
     parser = ArgumentParser(usage=usage, description=desc,
                             formatter_class=RawDescriptionHelpFormatter)
@@ -145,7 +147,7 @@ Examples:
         # Special case "@-" to mean stdin
         if args.command == "@-":
             if args.debug:
-                debug(f"Reading commands from stdin")
+                debug("Reading commands from stdin")
 
             commands = sys.stdin.read().split('\n')
 
@@ -153,7 +155,8 @@ Examples:
             if args.debug:
                 debug(f"Reading commands from {args.command[1:]}")
 
-            with open(args.command[1:], mode="rt") as fh:
+            # SAMP commands look to be ASCII not UTF-8.
+            with open(args.command[1:], encoding="ascii", mode="rt") as fh:
                 commands = fh.read().split('\n')
 
     else:
@@ -194,7 +197,7 @@ Examples:
                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--version", action="version", version=VERSION)
 
-    args = parser.parse_args()
+    parser.parse_args()
 
     clients = list_ds9()
     nclients = len(clients)
