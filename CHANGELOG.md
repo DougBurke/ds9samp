@@ -1,5 +1,13 @@
 # Changes for ds9samp
 
+## Version 0.0.4 - 2025-01-27
+
+The command-line tools now include the package version number when
+reporting an error. For example:
+
+    % ds9samp_list
+    # ds9samp_list (0.0.4): ERROR Unable to find a running SAMP Hub.
+
 ## Version 0.0.3 - 2025-01-24
 
 Added the `send_array` method to allow users to send a NumPy array

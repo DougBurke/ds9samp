@@ -269,7 +269,7 @@ If the hub can be queried then the "client name" for the DS9 instance
 to use can be found, otherwise the ds9samp_list script can be used:
 
 ```
-% There are 2 DS9 clients: c1 c4
+There are 2 DS9 clients: c1 c4
 ```
 
 Unfortunately there's no easy way to tell which is which. You can try
