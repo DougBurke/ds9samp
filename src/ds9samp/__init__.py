@@ -277,6 +277,10 @@ class Connection:
            The timeout, in seconds. If not set then use the
            default timeout value.
 
+        See Also
+        --------
+        retrieve_array
+
         """
 
         # Create a frame if necessary, since otherwise the ARRAY call
@@ -301,6 +305,51 @@ class Connection:
             #
             cmd = f"array {fh.name}{arr}"
             self.set(cmd, timeout=timeout)
+
+    def retrieve_array(self,
+                       timeout: int | None = None
+                       ) -> np.ndarray:
+        """Get the current frame as a NumPy array.
+
+        Parameters
+        ----------
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        See Also
+        --------
+        send_array
+
+        Notes
+        -----
+
+        An alternative would be to get DS9 to create a FITS file and
+        then read that in.
+
+        """
+
+        # Get the data information before creating the temporary file.
+        # Do we have to worry about WCS messing around with the units?
+        #
+        # These values should convert, so do not try to improve the
+        # error handling.
+        #
+        bitpix = int(self.get("fits bitpix"))
+        nx = int(self.get("fits width"))
+        ny = int(self.get("fits height"))
+
+        dtype = bitpix_to_dtype(bitpix)
+
+        with tempfile.NamedTemporaryFile(prefix="ds9samp",
+                                         suffix=".arr") as fh:
+            cmd = f"export array {fh.name} native"
+            self.set(cmd, timeout=timeout)
+
+            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=(ny, nx))
+            out = fp[:]
+
+        return out
 
 
 # From https://ds9.si.edu/doc/ref/file.html the array command says
@@ -355,6 +404,22 @@ def dtype_to_bitpix(dtype: np.dtype) -> int:
         return size * -8
 
     raise ValueError(f"Unsupported dtype: {dtype}")
+
+
+def bitpix_to_dtype(bpix: int) -> np.dtype:
+    """Convert the DS9/FITS BITPIX setting to a NumPy datatype"""
+
+    match bpix:
+        case -64: return np.dtype("float64")
+        case -32: return np.dtype("float32")
+        case -16: return np.dtype("float16")
+
+        case 64: return np.dtype("int64")
+        case 32: return np.dtype("int32")
+        case 16: return np.dtype("int16")
+        case 8: return np.dtype("int8")
+
+        case _: raise ValueError(f"Unsupported BITPIX: {bpix}")
 
 
 def start(name: str | None = None,

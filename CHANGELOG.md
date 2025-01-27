@@ -2,6 +2,9 @@
 
 ## Version 0.0.5 - 2025-01-27
 
+Added the `retrieve_array` method, which saves the current frame to a
+temporary file and then reads the data as a NumPy array.
+
 The `send_array` method will create a new frame if needed (otherwise
 the call to load the array data will fail).
 
