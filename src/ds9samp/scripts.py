@@ -67,7 +67,7 @@ def handle_error(name):
             try:
                 return fn(*args, **kwargs)
             except Exception as exc:
-                emsg = add_color(f"# ds9samp_{name}:") + \
+                emsg = add_color(f"# ds9samp_{name} ({VERSION}):") + \
                     f" ERROR {exc}\n"
                 sys.stderr.write(emsg)
                 sys.exit(1)
