@@ -6,7 +6,10 @@ Added the `retrieve_array` method, which saves the current frame to a
 temporary file and then reads the data as a NumPy array.
 
 The `send_array` method will create a new frame if needed (otherwise
-the call to load the array data will fail).
+the call to load the array data will fail). The mask argument should
+be set to True if the array should be treated as a mask for the
+frame. It now requires optional arguments to be explicitly named
+(i.e. keyword only).
 
 ## Version 0.0.4 - 2025-01-27
 

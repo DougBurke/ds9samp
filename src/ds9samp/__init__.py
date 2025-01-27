@@ -259,6 +259,8 @@ class Connection:
 
     def send_array(self,
                    img: np.ndarray,
+                   *,
+                   mask: bool = False,
                    timeout: int | None = None
                    ) -> None:
         """Send the array to DS9.
@@ -267,12 +269,18 @@ class Connection:
         sends the data, and then deletes the file.
 
         .. versionchanged:: 0.0.5
-           A DS9 frame will be created if needed.
+           A DS9 frame will be created if needed. The mask argument
+           has been added and optional arguments are now keyword-only
+           arguments.
+
+        .. versionadded:: 0.0.3
 
         Parameters
         ----------
         img:
            The 2D data to send.
+        mask: optional
+           Should the array be treated as a mask?
         timeout: optional
            The timeout, in seconds. If not set then use the
            default timeout value.
@@ -291,6 +299,10 @@ class Connection:
 
         # Map between NumPy and DS9 storage fields.
         #
+        # Hack in support for bool values
+        if img.dtype.type == np.bool_:
+            img = img.astype("int8")
+
         arr = np_to_array(img)
         with tempfile.NamedTemporaryFile(prefix="ds9samp",
                                          suffix=".arr") as fh:
@@ -303,13 +315,19 @@ class Connection:
             # invalid as soon as this call ends? I am not sure that it
             # is possible.
             #
-            cmd = f"array {fh.name}{arr}"
+            cmd = "array "
+            if mask:
+                cmd += "mask "
+            cmd += f" {fh.name}{arr}"
             self.set(cmd, timeout=timeout)
 
     def retrieve_array(self,
+                       *,
                        timeout: int | None = None
                        ) -> np.ndarray:
         """Get the current frame as a NumPy array.
+
+        .. versionadded:: 0.0.5
 
         Parameters
         ----------
