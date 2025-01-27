@@ -1,5 +1,10 @@
 # Changes for ds9samp
 
+## Version 0.0.5 - 2025-01-27
+
+The `send_array` method will create a new frame if needed (otherwise
+the call to load the array data will fail).
+
 ## Version 0.0.4 - 2025-01-27
 
 The command-line tools now include the package version number when

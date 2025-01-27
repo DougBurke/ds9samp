@@ -266,6 +266,9 @@ class Connection:
         This creates a temporary file to store the data,
         sends the data, and then deletes the file.
 
+        .. versionchanged:: 0.0.5
+           A DS9 frame will be created if needed.
+
         Parameters
         ----------
         img:
@@ -275,6 +278,12 @@ class Connection:
            default timeout value.
 
         """
+
+        # Create a frame if necessary, since otherwise the ARRAY call
+        # will fail.
+        #
+        if self.get("frame active") is None:
+            self.set("frame new")
 
         # Map between NumPy and DS9 storage fields.
         #
@@ -287,7 +296,8 @@ class Connection:
             fp.flush()
 
             # Should this over-ride the filename as it is going to be
-            # invalid? I am not sure that it is possible.
+            # invalid as soon as this call ends? I am not sure that it
+            # is possible.
             #
             cmd = f"array {fh.name}{arr}"
             self.set(cmd, timeout=timeout)
