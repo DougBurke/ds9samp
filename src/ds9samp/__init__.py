@@ -289,6 +289,17 @@ class Connection:
         --------
         retrieve_array
 
+        Examples
+        --------
+
+        Create an image of random values for a grid 500 pixels wide and
+        200 pixels tall:
+
+        >>> ds9 = ds9samp.start()
+        >>> ivals = np.random.randn(200, 500)
+        >>> ds9.send_array(ivals)
+        >>> ds9samp.end(ds9)
+
         """
 
         # Create a frame if necessary, since otherwise the ARRAY call
@@ -344,6 +355,26 @@ class Connection:
 
         An alternative would be to get DS9 to create a FITS file and
         then read that in.
+
+        Examples
+        --------
+
+        Smooth a 200 pixels wide by 500 pixels image of noise,
+        retrieve the smoothed values, and use them to create a mask
+        layer of the most-discrepant points:
+
+        >>> ds9 = ds9samp.start()
+        >>> ivals = np.random.randn(400, 300)
+        >>> ds9.send_array(ivals)
+        >>> ds9.set("cmap viridis")
+        >>> ds9.set("smooth function tophat")
+        >>> ds9.set("smooth radius 4")
+        >>> ds9.set("smooth on")
+        >>> svals = ds9.retrieve_array()
+        >>> ds9.set("smooth off")
+        >>> mvals = np.abs(svals) > 0.7
+        >>> ds9.send_array(mvals, mask=True)
+        >>> ds9samp.end(ds9)
 
         """
 

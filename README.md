@@ -401,3 +401,35 @@ with ds9samp.ds9samp() as ds9:
     ds9.send_array(img)
     ds9.set("cmap viridis")
 ```
+
+### Retrieving a NumPy array
+
+Version 0.0.5 added the `retrieve_array` call, which will return a
+NumPy array from the selected DS9 frame. As an example, we lightly
+smooth - using DS9 - an array and return it:
+
+```python
+import numpy as np
+import ds9samp
+
+orig = np.random.randn(300, 400)
+
+# Send it to DS9
+with ds9samp.ds9samp() as ds9:
+    ds9.send_array(orig)
+    ds9.set("cmap gray")
+    ds9.set("smooth function gaussian")
+    ds9.set("smooth radius 3")
+
+    # The color map and scaling do not change the retrieved values
+    smoothed = ds9.retrieve_array()
+
+    # Turn off the smoothing
+    ds9.set("smooth off")
+
+    # Identify the most-discrepant points in the smoothed image
+    discrepant = np.abs(smoothed) > 3
+
+    # Add it as a mask
+    ds9.send_array(discrepant, mask=True)
+```
