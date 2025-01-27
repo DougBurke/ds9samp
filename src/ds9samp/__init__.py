@@ -259,6 +259,8 @@ class Connection:
 
     def send_array(self,
                    img: np.ndarray,
+                   *,
+                   mask: bool = False,
                    timeout: int | None = None
                    ) -> None:
         """Send the array to DS9.
@@ -266,18 +268,52 @@ class Connection:
         This creates a temporary file to store the data,
         sends the data, and then deletes the file.
 
+        .. versionchanged:: 0.0.5
+           A DS9 frame will be created if needed. The mask argument
+           has been added and optional arguments are now keyword-only
+           arguments.
+
+        .. versionadded:: 0.0.3
+
         Parameters
         ----------
         img:
            The 2D data to send.
+        mask: optional
+           Should the array be treated as a mask?
         timeout: optional
            The timeout, in seconds. If not set then use the
            default timeout value.
 
+        See Also
+        --------
+        retrieve_array
+
+        Examples
+        --------
+
+        Create an image of random values for a grid 500 pixels wide and
+        200 pixels tall:
+
+        >>> ds9 = ds9samp.start()
+        >>> ivals = np.random.randn(200, 500)
+        >>> ds9.send_array(ivals)
+        >>> ds9samp.end(ds9)
+
         """
+
+        # Create a frame if necessary, since otherwise the ARRAY call
+        # will fail.
+        #
+        if self.get("frame active") is None:
+            self.set("frame new")
 
         # Map between NumPy and DS9 storage fields.
         #
+        # Hack in support for bool values
+        if img.dtype.type == np.bool_:
+            img = img.astype("int8")
+
         arr = np_to_array(img)
         with tempfile.NamedTemporaryFile(prefix="ds9samp",
                                          suffix=".arr") as fh:
@@ -287,10 +323,82 @@ class Connection:
             fp.flush()
 
             # Should this over-ride the filename as it is going to be
-            # invalid? I am not sure that it is possible.
+            # invalid as soon as this call ends? I am not sure that it
+            # is possible.
             #
-            cmd = f"array {fh.name}{arr}"
+            cmd = "array "
+            if mask:
+                cmd += "mask "
+            cmd += f" {fh.name}{arr}"
             self.set(cmd, timeout=timeout)
+
+    def retrieve_array(self,
+                       *,
+                       timeout: int | None = None
+                       ) -> np.ndarray:
+        """Get the current frame as a NumPy array.
+
+        .. versionadded:: 0.0.5
+
+        Parameters
+        ----------
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        See Also
+        --------
+        send_array
+
+        Notes
+        -----
+
+        An alternative would be to get DS9 to create a FITS file and
+        then read that in.
+
+        Examples
+        --------
+
+        Smooth a 200 pixels wide by 500 pixels image of noise,
+        retrieve the smoothed values, and use them to create a mask
+        layer of the most-discrepant points:
+
+        >>> ds9 = ds9samp.start()
+        >>> ivals = np.random.randn(400, 300)
+        >>> ds9.send_array(ivals)
+        >>> ds9.set("cmap viridis")
+        >>> ds9.set("smooth function tophat")
+        >>> ds9.set("smooth radius 4")
+        >>> ds9.set("smooth on")
+        >>> svals = ds9.retrieve_array()
+        >>> ds9.set("smooth off")
+        >>> mvals = np.abs(svals) > 0.7
+        >>> ds9.send_array(mvals, mask=True)
+        >>> ds9samp.end(ds9)
+
+        """
+
+        # Get the data information before creating the temporary file.
+        # Do we have to worry about WCS messing around with the units?
+        #
+        # These values should convert, so do not try to improve the
+        # error handling.
+        #
+        bitpix = int(self.get("fits bitpix"))
+        nx = int(self.get("fits width"))
+        ny = int(self.get("fits height"))
+
+        dtype = bitpix_to_dtype(bitpix)
+
+        with tempfile.NamedTemporaryFile(prefix="ds9samp",
+                                         suffix=".arr") as fh:
+            cmd = f"export array {fh.name} native"
+            self.set(cmd, timeout=timeout)
+
+            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=(ny, nx))
+            out = fp[:]
+
+        return out
 
 
 # From https://ds9.si.edu/doc/ref/file.html the array command says
@@ -345,6 +453,22 @@ def dtype_to_bitpix(dtype: np.dtype) -> int:
         return size * -8
 
     raise ValueError(f"Unsupported dtype: {dtype}")
+
+
+def bitpix_to_dtype(bpix: int) -> np.dtype:
+    """Convert the DS9/FITS BITPIX setting to a NumPy datatype"""
+
+    match bpix:
+        case -64: return np.dtype("float64")
+        case -32: return np.dtype("float32")
+        case -16: return np.dtype("float16")
+
+        case 64: return np.dtype("int64")
+        case 32: return np.dtype("int32")
+        case 16: return np.dtype("int16")
+        case 8: return np.dtype("int8")
+
+        case _: raise ValueError(f"Unsupported BITPIX: {bpix}")
 
 
 def start(name: str | None = None,
