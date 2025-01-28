@@ -142,7 +142,7 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from astropy import samp
+from astropy import samp  # type: ignore
 
 __all__ = ["Cube", "ds9samp", "list_ds9"]
 
@@ -832,7 +832,7 @@ def start(name: str | None = None,
     #
     if client is not None:
         if client in names:
-            name = client
+            clname = client
         else:
             ds9.disconnect()
             raise ValueError(f"client name {client} is not valid")
@@ -842,9 +842,9 @@ def start(name: str | None = None,
             ds9.disconnect()
             raise OSError("Unable to support multiple DS9 SAMP clients. Try setting the client parameter.")
 
-        name = names.pop()
+        clname = names.pop()
 
-    return Connection(ds9=ds9, client=name)
+    return Connection(ds9=ds9, client=clname)
 
 
 def end(connection: Connection) -> None:
