@@ -87,6 +87,21 @@ For more complex cases the creation of the memmap-ed file should be
 done manually, as described in the `DS9 example
 <https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy>`_.
 
+3D data
+^^^^^^^
+
+3D data can be sent and retrieved with `send_array` and
+`retrieve_array`. If the data should be treated as RGB, HLS, or HSV
+data - that is, the third dimension has 3 elements representing
+
+- red, green, and blue channels
+- hue, lightness, and saturation
+- hue, saturation, and value
+
+then the `send_array` should be called setting the `cube` argument to
+a value from the `Cube` enumeration; that is `Cube.RGB`, `Cube.HLS`,
+or `Cube.HSV`.
+
 Timeouts
 --------
 
@@ -118,21 +133,130 @@ with a command like
 """
 
 from contextlib import contextmanager
+from enum import Enum
 import importlib.metadata
+import os
+import sys
 import tempfile
+from urllib.parse import urlparse
 
 import numpy as np
 
-from astropy import samp
+from astropy import samp  # type: ignore
 
-__all__ = ["ds9samp", "list_ds9"]
+__all__ = ["Cube", "ds9samp", "list_ds9"]
 
 
 VERSION = importlib.metadata.version("ds9samp")
 
 
+class Cube(Enum):
+    """How should a 3D cube be treated by DS9."""
+
+    RGB = 1
+    "Data is stored in Red, Green, Blue order."
+
+    HLS = 2
+    "Data is stored in Hue, Lightness, Saturation order."
+
+    HSV = 3
+    "Data is stored in Hue, Saturation, Value order."
+
+
+def add_color(txt):
+    """Allow ANSI color escape codes unless NO_COLOR env var is set
+    or sys.stderr is not a TTY.
+
+    See https://no-color.org/
+
+    Is it worth allowing these colors to be customized?
+    """
+
+    if not sys.stderr.isatty():
+        return txt
+
+    if os.getenv('NO_COLOR') is not None:
+        return txt
+
+    return f"\033[1;31m{txt}\033[0;0m"
+
+
+def debug(msg: str) -> None:
+    """Display the debug message.
+
+    Parameters
+    ----------
+    msg
+       The message to display
+
+    See Also
+    --------
+    error, warning
+
+    """
+
+    # This should use the logging infrastructure but I want to see how
+    # it ends up working out first.
+    #
+    lhs = add_color("DEBUG:")
+    print(f"{lhs} {msg}")
+
+
+def error(msg: str) -> None:
+    """Display the error message.
+
+    Parameters
+    ----------
+    msg
+       The message to display
+
+    See Also
+    --------
+    debug, warning
+
+    Notes
+    -----
+    We could raise an error, but in loosely-coupled systems like
+    DS9+SAMP we don't want to have to deal with catching exceptions,
+    so we instead display a message and continue.
+
+    """
+
+    # This should use the logging infrastructure but I want to see how
+    # it ends up working out first.
+    #
+    lhs = add_color("ERROR:")
+    print(f"{lhs} {msg}")
+
+
+def warning(msg: str) -> None:
+    """Display the warning message.
+
+    Parameters
+    ----------
+    msg
+       The message to display
+
+    See Also
+    --------
+    debug, error
+
+    """
+
+    # This should use the logging infrastructure but I want to see how
+    # it ends up working out first.
+    #
+    lhs = add_color("WARNING:")
+    print(f"{lhs} {msg}")
+
+
 class Connection:
-    """Store the DS9 connection."""
+    """Store the DS9 connection.
+
+    .. versionchanged:: 0.0.6
+       Added the debug option.
+
+    """
 
     def __init__(self,
                  ds9: samp.SAMPIntegratedClient,
@@ -141,6 +265,7 @@ class Connection:
 
         self.ds9 = ds9
         self.client = client
+        self.debug = False
         self.metadata = ds9.get_metadata(client)
         self.timeout = 10
         """Timeout, in seconds (must be an integer)."""
@@ -163,6 +288,11 @@ class Connection:
         stdout) and None is returned. This call will raise an error if
         there is a SAMP commmunication problem.
 
+        .. versionchanged:: 0.0.6
+           Commands that return data via a url (such as "data") will
+           now return the contents of the url, rather than returning
+           `None`.
+
         Parameters
         ----------
         command
@@ -184,6 +314,11 @@ class Connection:
         out = self.ds9.ecall_and_wait(self.client, "ds9.get",
                                       timeout=tout_str, cmd=command)
 
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.get {command} timeout={tout_str}")
+            debug(str(out))
+
         status = out["samp.status"]
         if status != "samp.ok":
             evals = out["samp.error"]
@@ -193,19 +328,44 @@ class Connection:
                 emsg = "Unknown DS9 error"
 
             if status == "samp.error":
-                print(f"ERROR: {emsg}")
+                error(emsg)
                 return None
 
-            print(f"WARNING: {emsg}")
+            warning(emsg)
 
-        # We assume that there is a result, but the value may not
-        # exist.
+        # The result is assumed to be one of:
+        #  - the value field
+        #  - the url field
+        #  - otherwise we just return None
         #
         result = out["samp.result"]
-        try:
-            return result["value"]
-        except KeyError:
-            return None
+        value = result.get("value")
+        if value is not None:
+            return value
+
+        # We can probably assume that it's always a file on the
+        # localhost, but add checks just in case.
+        #
+        url = result.get("url")
+        if url is not None:
+            if self.debug:
+                debug(f"DS9 returned data in URL={url}")
+
+            res = urlparse(url)
+            if res.scheme != "file":
+                error(f"expected file url, not {url}")
+                return None
+
+            # We could check that res.netloc == "localhost" but I do
+            # not know if the tcl URL stack is guaranteed to use
+            # localhost, so just assume it is local.
+            #
+            # What's the best encoding?
+            with open(res.path, mode="rt", encoding="ascii") as fh:
+                return fh.read()
+
+        return None
+
 
     def set(self,
             command: str,
@@ -240,6 +400,11 @@ class Connection:
         out = self.ds9.ecall_and_wait(self.client, "ds9.set",
                                       timeout=tout_str, cmd=command)
 
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.set {command} timeout={tout_str}")
+            debug(str(out))
+
         status = out["samp.status"]
         if status == "samp.ok":
             return
@@ -252,14 +417,15 @@ class Connection:
 
         # Does DS9 support samp.warning?
         if status == "samp.warning":
-            print(f"WARNING: {emsg}")
+            warning(emsg)
             return
 
-        print(f"ERROR: {emsg}")
+        error(emsg)
 
     def send_array(self,
                    img: np.ndarray,
                    *,
+                   cube: Cube | None = None,
                    mask: bool = False,
                    timeout: int | None = None
                    ) -> None:
@@ -267,6 +433,10 @@ class Connection:
 
         This creates a temporary file to store the data,
         sends the data, and then deletes the file.
+
+        .. versionchanged:: 0.0.6
+           3D arrays can now be sent and the cube argument used to
+           select what mode 3D data is interpreted as.
 
         .. versionchanged:: 0.0.5
            A DS9 frame will be created if needed. The mask argument
@@ -278,7 +448,10 @@ class Connection:
         Parameters
         ----------
         img:
-           The 2D data to send.
+           The 2D or 3D data to send.
+        cube: optional
+           If 3D data is sent in, should it be treated as RGB, HLS,
+           or HSV format. Leave as None to treat as a generic cube.
         mask: optional
            Should the array be treated as a mask?
         timeout: optional
@@ -288,6 +461,14 @@ class Connection:
         See Also
         --------
         retrieve_array
+
+        Notes
+        -----
+
+        DS9 has limited support for all the varied number types, such
+        as complex numbers or unsigned integers, so the code may
+        either error out or choose a lossy conversion (e.g. unsigned
+        to signed integers of the same size).
 
         Examples
         --------
@@ -300,13 +481,20 @@ class Connection:
         >>> ds9.send_array(ivals)
         >>> ds9samp.end(ds9)
 
-        """
+        Send in a cube, change the scaling so that the full array
+        range is shown, loop through the slices, and then stop and
+        move to the first slice:
 
-        # Create a frame if necessary, since otherwise the ARRAY call
-        # will fail.
-        #
-        if self.get("frame active") is None:
-            self.set("frame new")
+        >>> cube = np.arange(5 * 20 * 30).reshape(5, 30, 20)
+        >>> minval = cube.min()
+        >>> maxval = cube.max()
+        >>> ds9.send_array(cube)
+        >>> ds9.set(f"scale limits {minval} {maxval}")
+        >>> ds9.set("cube play")
+        >>> ds9.set("cube stop")
+        >>> ds9.set("cube 1")
+
+        """
 
         # Map between NumPy and DS9 storage fields.
         #
@@ -315,6 +503,28 @@ class Connection:
             img = img.astype("int8")
 
         arr = np_to_array(img)
+
+        # Validate the cube argument when given.
+        #
+        action = ""
+        if cube is not None:
+            if img.ndim != 3:
+                raise ValueError("data must be 3D to set the cube argument")
+            if img.shape[0] != 3:
+                raise ValueError("z axis must have size 3 when cube argument is set")
+
+            match cube:
+                case Cube.RGB: action = "rgb"
+                case Cube.HLS: action = "hls"
+                case Cube.HSV: action = "hsv"
+                case _: raise ValueError(f"Invalid argument: cube={cube}")
+
+        # Create a frame if necessary, since otherwise the ARRAY call
+        # will fail.
+        #
+        if self.get("frame active") is None:
+            self.set("frame new")
+
         with tempfile.NamedTemporaryFile(prefix="ds9samp",
                                          suffix=".arr") as fh:
             fp = np.memmap(fh, mode='w+', dtype=img.dtype,
@@ -322,11 +532,21 @@ class Connection:
             fp[:] = img
             fp.flush()
 
+            # If given a RGB/HLS/HSV cube then create a frame. We
+            # could try and check if we have one already, but it's not
+            # clear how to do this, so always create it. If a user
+            # wants to re-use the frame then they can try and do this
+            # manually (probably by creating a FITS file and loading
+            # that?).
+            #
+            if action != "":
+                self.set(action, timeout=timeout)
+
             # Should this over-ride the filename as it is going to be
             # invalid as soon as this call ends? I am not sure that it
             # is possible.
             #
-            cmd = "array "
+            cmd = f"{action}array "
             if mask:
                 cmd += "mask "
             cmd += f" {fh.name}{arr}"
@@ -335,8 +555,11 @@ class Connection:
     def retrieve_array(self,
                        *,
                        timeout: int | None = None
-                       ) -> np.ndarray:
+                       ) -> np.ndarray | None:
         """Get the current frame as a NumPy array.
+
+        .. versionchanged:: 0.0.6
+           3D arrays can now be returned.
 
         .. versionadded:: 0.0.5
 
@@ -384,18 +607,38 @@ class Connection:
         # These values should convert, so do not try to improve the
         # error handling.
         #
-        bitpix = int(self.get("fits bitpix"))
-        nx = int(self.get("fits width"))
-        ny = int(self.get("fits height"))
+        def convert(arg):
+            val = self.get(f"fits {arg}")
+            if val is None:
+                return 0
+            return int(val)
+
+        bitpix = convert("bitpix")
+        nx = convert("width")
+        ny = convert("height")
+        nz = convert("depth")
+
+        if nx == 0 or ny == 0:
+            error("DS9 appears to contain no data")
+            return None
 
         dtype = bitpix_to_dtype(bitpix)
+        if dtype is None:
+            error(f"Unsupported BITPIX: {bitpix}")
+            return None
+
+        shape: tuple[int, ...]
+        if nz > 1:
+            shape = (nz, ny, nx)
+        else:
+            shape = (ny, nx)
 
         with tempfile.NamedTemporaryFile(prefix="ds9samp",
                                          suffix=".arr") as fh:
             cmd = f"export array {fh.name} native"
             self.set(cmd, timeout=timeout)
 
-            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=(ny, nx))
+            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=shape)
             out = fp[:]
 
         return out
@@ -412,31 +655,81 @@ class Connection:
 #    arch|endian=[big|bigendian|little|littleendian]
 #
 def np_to_array(img: np.ndarray) -> str:
-    """Convert from NumPy data type to DS9 settings."""
+    """Convert from NumPy data type to DS9 settings.
+
+    Parameters
+    ----------
+    img
+       The array to send. This must be 2D or 3D and not empty.
+
+    Returns
+    -------
+    settings
+       The settings needed by DS9 to decode the data.
+
+    Notes
+    -----
+    This will error out if there is a problem, rather than just
+    display a warning message, as this is expected to be used with a
+    user-supplied array.
+
+    """
 
     # For now restrict to 2D data only
     #
-    if img.ndim != 2:
-        raise ValueError(f"img must be 2D, sent {img.ndim}D")
+    opts = []
+    match img.ndim:
+        case 2:
+            ny, nx = img.shape
+            opts.extend([f"xdim={nx}", f"ydim={ny}"])
 
-    ny, nx = img.shape
+        case 3:
+            nz, ny, nx = img.shape
+            opts.extend([f"xdim={nx}", f"ydim={ny}", f"zdim={nz}"])
+
+        case _:
+            raise ValueError(f"img must be 2D or 3D, sent {img.ndim}D")
+
+    if nx == 0 or ny == 0:
+        raise ValueError("array appears to be empty")
+
     bpix = dtype_to_bitpix(img.dtype)
-    out = f"xdim={nx},ydim={ny},bitpix={bpix}"
+    opts.append(f"bitpix={bpix}")
 
     # Is this needed?
     match img.dtype.byteorder:
         case '<':
-            out += ",arch=little"
+            opts.append("arch=little")
         case '>':
-            out += ",arch=big"
+            opts.append("arch=big")
         case _:  # handle native and not-applicable
             pass
 
+    out = ",".join(opts)
     return f"[{out}]"
 
 
 def dtype_to_bitpix(dtype: np.dtype) -> int:
-    """Convert the data type to DS9/FITS BITPIX setting."""
+    """Convert the data type to DS9/FITS BITPIX setting.
+
+    Parameters
+    ----------
+    dtype
+       The NumPy dtype of the array.
+
+    Return
+    ------
+    bitpix
+       The FITS BITPIX value used to represent the data. This may be a
+       lossy conversion (e.g. unsigned to signed).
+
+    Notes
+    -----
+    This will error out if there is a problem, rather than just
+    display a warning message, as this is expected to be used with a
+    user-supplied array.
+
+    """
 
     # Not trying to be clever here. Can we just piggy back on astropy
     # instead?
@@ -455,8 +748,15 @@ def dtype_to_bitpix(dtype: np.dtype) -> int:
     raise ValueError(f"Unsupported dtype: {dtype}")
 
 
-def bitpix_to_dtype(bpix: int) -> np.dtype:
-    """Convert the DS9/FITS BITPIX setting to a NumPy datatype"""
+def bitpix_to_dtype(bpix: int) -> np.dtype | None:
+    """Convert the DS9/FITS BITPIX setting to a NumPy datatype.
+
+    Notes
+    -----
+    As this is intended to be used with data sent by DS9, errors are
+    not raised, and the routine just returns None.
+
+    """
 
     match bpix:
         case -64: return np.dtype("float64")
@@ -468,7 +768,8 @@ def bitpix_to_dtype(bpix: int) -> np.dtype:
         case 16: return np.dtype("int16")
         case 8: return np.dtype("int8")
 
-        case _: raise ValueError(f"Unsupported BITPIX: {bpix}")
+        case _:
+            return None
 
 
 def start(name: str | None = None,
@@ -531,7 +832,7 @@ def start(name: str | None = None,
     #
     if client is not None:
         if client in names:
-            name = client
+            clname = client
         else:
             ds9.disconnect()
             raise ValueError(f"client name {client} is not valid")
@@ -541,9 +842,9 @@ def start(name: str | None = None,
             ds9.disconnect()
             raise OSError("Unable to support multiple DS9 SAMP clients. Try setting the client parameter.")
 
-        name = names.pop()
+        clname = names.pop()
 
-    return Connection(ds9=ds9, client=name)
+    return Connection(ds9=ds9, client=clname)
 
 
 def end(connection: Connection) -> None:

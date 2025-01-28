@@ -1,5 +1,19 @@
 # Changes for ds9samp
 
+## Version 0.0.6 - 2025-01-28
+
+The `send_array` and `retrieve_array` methods can now handle 3D arrays
+as well as 2D ones. Data in RGB, HLS, or HSV format is identified by
+setting the `cube` argument in `send_array` to one of: `Cube.RGB`,
+`Cube.HLS`, or `Cube.HSV`.
+
+Commands which return data via a url, such as "data", will now return
+the contents of this file, rather than returning `None` (this is only
+valid for `get` calls).
+
+The ds9 connection has now gained a debug field which can be set to
+`True` to display the SAMP return value for each `set` or `get` call.
+
 ## Version 0.0.5 - 2025-01-27
 
 Added the `retrieve_array` method, which saves the current frame to a

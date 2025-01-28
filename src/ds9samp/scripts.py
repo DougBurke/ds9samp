@@ -10,10 +10,9 @@ Error messages will include color (red) unless
 """
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-import os
 import sys
 
-from ds9samp import ds9samp, list_ds9, VERSION
+from ds9samp import add_color, ds9samp, list_ds9, VERSION
 
 
 def parse(desc):
@@ -39,24 +38,6 @@ def parse(desc):
 def debug(msg):
     """Print out the debug message."""
     print(f"# {msg}")
-
-
-def add_color(txt):
-    """Allow ANSI color escape codes unless NO_COLOR env var is set
-    or sys.stderr is not a TTY.
-
-    See https://no-color.org/
-
-    Is it worth allowing these colors to be customized?
-    """
-
-    if not sys.stderr.isatty():
-        return txt
-
-    if os.getenv('NO_COLOR') is not None:
-        return txt
-
-    return f"\033[1;31m{txt}\033[0;0m"
 
 
 def handle_error(name):
@@ -107,6 +88,7 @@ Examples:
         if args.debug:
             debug(f"Connected: {ds9}")
             debug(f"Command: {args.command}")
+            ds9.debug = True
 
         out = ds9.get(args.command, timeout=args.timeout)
 
@@ -166,6 +148,7 @@ Examples:
     with ds9samp(client=args.client) as ds9:
         if args.debug:
             debug(f"Connected: {ds9}")
+            ds9.debug = True
 
         ds9.timeout = args.timeout
         for command in commands:
