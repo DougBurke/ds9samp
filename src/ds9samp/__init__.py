@@ -151,6 +151,27 @@ def add_color(txt):
     return f"\033[1;31m{txt}\033[0;0m"
 
 
+def debug(msg: str) -> None:
+    """Display the debug message.
+
+    Parameters
+    ----------
+    msg
+       The message to display
+
+    See Also
+    --------
+    error, warning
+
+    """
+
+    # This should use the logging infrastructure but I want to see how
+    # it ends up working out first.
+    #
+    lhs = add_color("DEBUG:")
+    print(f"{lhs} {msg}")
+
+
 def error(msg: str) -> None:
     """Display the error message.
 
@@ -161,7 +182,7 @@ def error(msg: str) -> None:
 
     See Also
     --------
-    warning
+    debug, warning
 
     Notes
     -----
@@ -188,7 +209,7 @@ def warning(msg: str) -> None:
 
     See Also
     --------
-    error
+    debug, error
 
     """
 
@@ -200,7 +221,12 @@ def warning(msg: str) -> None:
 
 
 class Connection:
-    """Store the DS9 connection."""
+    """Store the DS9 connection.
+
+    .. versionchanged:: 0.0.6
+       Added the debug option.
+
+    """
 
     def __init__(self,
                  ds9: samp.SAMPIntegratedClient,
@@ -209,6 +235,7 @@ class Connection:
 
         self.ds9 = ds9
         self.client = client
+        self.debug = False
         self.metadata = ds9.get_metadata(client)
         self.timeout = 10
         """Timeout, in seconds (must be an integer)."""
@@ -251,6 +278,11 @@ class Connection:
         tout_str = str(int(tout))
         out = self.ds9.ecall_and_wait(self.client, "ds9.get",
                                       timeout=tout_str, cmd=command)
+
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.get {command} timeout={tout_str}")
+            debug(str(out))
 
         status = out["samp.status"]
         if status != "samp.ok":
@@ -307,6 +339,11 @@ class Connection:
         tout_str = str(int(tout))
         out = self.ds9.ecall_and_wait(self.client, "ds9.set",
                                       timeout=tout_str, cmd=command)
+
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.set {command} timeout={tout_str}")
+            debug(str(out))
 
         status = out["samp.status"]
         if status == "samp.ok":

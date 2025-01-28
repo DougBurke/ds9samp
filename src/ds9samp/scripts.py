@@ -88,6 +88,7 @@ Examples:
         if args.debug:
             debug(f"Connected: {ds9}")
             debug(f"Command: {args.command}")
+            ds9.debug = True
 
         out = ds9.get(args.command, timeout=args.timeout)
 
@@ -147,6 +148,7 @@ Examples:
     with ds9samp(client=args.client) as ds9:
         if args.debug:
             debug(f"Connected: {ds9}")
+            ds9.debug = True
 
         ds9.timeout = args.timeout
         for command in commands:
