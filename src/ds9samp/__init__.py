@@ -122,6 +122,7 @@ import importlib.metadata
 import os
 import sys
 import tempfile
+from urllib.parse import urlparse
 
 import numpy as np
 
@@ -258,6 +259,11 @@ class Connection:
         stdout) and None is returned. This call will raise an error if
         there is a SAMP commmunication problem.
 
+        .. versionchanged:: 0.0.6
+           Commands that return data via a url (such as "data") will
+           now return the contents of the url, rather than returning
+           `None`.
+
         Parameters
         ----------
         command
@@ -298,14 +304,39 @@ class Connection:
 
             warning(emsg)
 
-        # We assume that there is a result, but the value may not
-        # exist.
+        # The result is assumed to be one of:
+        #  - the value field
+        #  - the url field
+        #  - otherwise we just return None
         #
         result = out["samp.result"]
-        try:
-            return result["value"]
-        except KeyError:
-            return None
+        value = result.get("value")
+        if value is not None:
+            return value
+
+        # We can probably assume that it's always a file on the
+        # localhost, but add checks just in case.
+        #
+        url = result.get("url")
+        if url is not None:
+            if self.debug:
+                debug(f"DS9 returned data in URL={url}")
+
+            res = urlparse(url)
+            if res.scheme != "file":
+                error(f"expected file url, not {url}")
+                return None
+
+            # We could check that res.netloc == "localhost" but I do
+            # not know if the tcl URL stack is guaranteed to use
+            # localhost, so just assume it is local.
+            #
+            # What's the best encoding?
+            with open(res.path, mode="rt", encoding="ascii") as fh:
+                return fh.read()
+
+        return None
+
 
     def set(self,
             command: str,

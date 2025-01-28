@@ -361,11 +361,48 @@ with ds9samp() as ds9:
     x, y = [float(c) for c in coord.split()]
     print(f" -> '{coord}'")
     print(f" -> x={x}  y={y}")
+
+    # Extract pixel data around this location, using a box size of 0.7
+    # arcseconds.
+    #
+    size = 0.7 / 3600
+    vals = ds9.get("data wcs {x} {y} {size:.5f} {size:.5f} no")
+    print("Data values:")
+    print(vals)
 ```
 
-If a `get` call returns a value then it is returned as a string,
-and the format depends on the command (in this case a pair of
-space-separated coordinates).
+If a `get` call returns a value then it is returned as a string, and
+the format depends on the command, in this case a pair of
+space-separated coordinates, for `imexam`. The return value for `data`
+depends on the last argument (in this case `no`, which means the pixel
+coordinates are included).
+
+An example output of this is:
+
+```
+Click anwhere in the image
+ -> '202.4845615 47.1919416'
+ -> x=202.4845615  y=47.1919416
+Data values:
+202.4843826,47.1918298 = 20
+202.4845067,47.1919821 = 33
+202.4844518,47.1920227 = 23
+202.4843373,47.1920259 = 21
+202.4844422,47.1918671 = 24
+202.4843325,47.1919481 = 21
+202.4843874,47.1919076 = 21
+202.4843277,47.1918703 = 20
+202.4845615,47.1919416 = 68
+202.4842181,47.1919514 = 22
+202.4842729,47.1919109 = 22
+202.4843970,47.1920632 = 19
+202.4845019,47.1919043 = 34
+202.4842777,47.1919887 = 21
+202.4844470,47.1919449 = 24
+202.4843922,47.1919854 = 21
+
+
+```
 
 ### Sending a NumPy array
 

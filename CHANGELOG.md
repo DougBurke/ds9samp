@@ -5,6 +5,10 @@
 The `send_array` and `retrieve_array` methods can now handle 3D arrays
 as well as 2D ones.
 
+Commands which return data via a url, such as "data", will now return
+the contents of this file, rather than returning `None` (this is only
+valid for `get` calls).
+
 The ds9 connection has now gained a debug field which can be set to
 `True` to display the SAMP return value for each `set` or `get` call.
 
