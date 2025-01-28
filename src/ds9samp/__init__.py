@@ -119,6 +119,8 @@ with a command like
 
 from contextlib import contextmanager
 import importlib.metadata
+import os
+import sys
 import tempfile
 
 import numpy as np
@@ -129,6 +131,72 @@ __all__ = ["ds9samp", "list_ds9"]
 
 
 VERSION = importlib.metadata.version("ds9samp")
+
+
+def add_color(txt):
+    """Allow ANSI color escape codes unless NO_COLOR env var is set
+    or sys.stderr is not a TTY.
+
+    See https://no-color.org/
+
+    Is it worth allowing these colors to be customized?
+    """
+
+    if not sys.stderr.isatty():
+        return txt
+
+    if os.getenv('NO_COLOR') is not None:
+        return txt
+
+    return f"\033[1;31m{txt}\033[0;0m"
+
+
+def error(msg: str) -> None:
+    """Display the error message.
+
+    Parameters
+    ----------
+    msg
+       The message to display
+
+    See Also
+    --------
+    warning
+
+    Notes
+    -----
+    We could raise an error, but in loosely-coupled systems like
+    DS9+SAMP we don't want to have to deal with catching exceptions,
+    so we instead display a message and continue.
+
+    """
+
+    # This should use the logging infrastructure but I want to see how
+    # it ends up working out first.
+    #
+    lhs = add_color("ERROR:")
+    print(f"{lhs} {msg}")
+
+
+def warning(msg: str) -> None:
+    """Display the warning message.
+
+    Parameters
+    ----------
+    msg
+       The message to display
+
+    See Also
+    --------
+    error
+
+    """
+
+    # This should use the logging infrastructure but I want to see how
+    # it ends up working out first.
+    #
+    lhs = add_color("WARNING:")
+    print(f"{lhs} {msg}")
 
 
 class Connection:
@@ -193,10 +261,10 @@ class Connection:
                 emsg = "Unknown DS9 error"
 
             if status == "samp.error":
-                print(f"ERROR: {emsg}")
+                error(emsg)
                 return None
 
-            print(f"WARNING: {emsg}")
+            warning(emsg)
 
         # We assume that there is a result, but the value may not
         # exist.
@@ -252,10 +320,10 @@ class Connection:
 
         # Does DS9 support samp.warning?
         if status == "samp.warning":
-            print(f"WARNING: {emsg}")
+            warning(emsg)
             return
 
-        print(f"ERROR: {emsg}")
+        error(emsg)
 
     def send_array(self,
                    img: np.ndarray,
@@ -268,6 +336,9 @@ class Connection:
         This creates a temporary file to store the data,
         sends the data, and then deletes the file.
 
+        .. versionchanged:: 0.0.6
+           3D arrays can now be sent.
+
         .. versionchanged:: 0.0.5
            A DS9 frame will be created if needed. The mask argument
            has been added and optional arguments are now keyword-only
@@ -278,7 +349,7 @@ class Connection:
         Parameters
         ----------
         img:
-           The 2D data to send.
+           The 2D or 3D data to send.
         mask: optional
            Should the array be treated as a mask?
         timeout: optional
@@ -288,6 +359,14 @@ class Connection:
         See Also
         --------
         retrieve_array
+
+        Notes
+        -----
+
+        DS9 has limited support for all the varied number types, such
+        as complex numbers or unsigned integers, so the code may
+        either error out or choose a lossy conversion (e.g. unsigned
+        to signed integers of the same size).
 
         Examples
         --------
@@ -300,13 +379,20 @@ class Connection:
         >>> ds9.send_array(ivals)
         >>> ds9samp.end(ds9)
 
-        """
+        Send in a cube, change the scaling so that the full array
+        range is shown, loop through the slices, and then stop and
+        move to the first slice:
 
-        # Create a frame if necessary, since otherwise the ARRAY call
-        # will fail.
-        #
-        if self.get("frame active") is None:
-            self.set("frame new")
+        >>> cube = np.arange(5 * 20 * 30).reshape(5, 30, 20)
+        >>> minval = cube.min()
+        >>> maxval = cube.max()
+        >>> ds9.send_array(cube)
+        >>> ds9.set(f"scale limits {minval} {maxval}")
+        >>> ds9.set("cube play")
+        >>> ds9.set("cube stop")
+        >>> ds9.set("cube 1")
+
+        """
 
         # Map between NumPy and DS9 storage fields.
         #
@@ -315,6 +401,13 @@ class Connection:
             img = img.astype("int8")
 
         arr = np_to_array(img)
+
+        # Create a frame if necessary, since otherwise the ARRAY call
+        # will fail.
+        #
+        if self.get("frame active") is None:
+            self.set("frame new")
+
         with tempfile.NamedTemporaryFile(prefix="ds9samp",
                                          suffix=".arr") as fh:
             fp = np.memmap(fh, mode='w+', dtype=img.dtype,
@@ -335,8 +428,11 @@ class Connection:
     def retrieve_array(self,
                        *,
                        timeout: int | None = None
-                       ) -> np.ndarray:
+                       ) -> np.ndarray | None:
         """Get the current frame as a NumPy array.
+
+        .. versionchanged:: 0.0.6
+           3D arrays can now be returned.
 
         .. versionadded:: 0.0.5
 
@@ -384,18 +480,38 @@ class Connection:
         # These values should convert, so do not try to improve the
         # error handling.
         #
-        bitpix = int(self.get("fits bitpix"))
-        nx = int(self.get("fits width"))
-        ny = int(self.get("fits height"))
+        def convert(arg):
+            val = self.get(f"fits {arg}")
+            if val is None:
+                return 0
+            return int(val)
+
+        bitpix = convert("bitpix")
+        nx = convert("width")
+        ny = convert("height")
+        nz = convert("depth")
+
+        if nx == 0 or ny == 0:
+            error("DS9 appears to contain no data")
+            return None
 
         dtype = bitpix_to_dtype(bitpix)
+        if dtype is None:
+            error(f"Unsupported BITPIX: {bitpix}")
+            return None
+
+        shape: tuple[int, ...]
+        if nz > 1:
+            shape = (nz, ny, nx)
+        else:
+            shape = (ny, nx)
 
         with tempfile.NamedTemporaryFile(prefix="ds9samp",
                                          suffix=".arr") as fh:
             cmd = f"export array {fh.name} native"
             self.set(cmd, timeout=timeout)
 
-            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=(ny, nx))
+            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=shape)
             out = fp[:]
 
         return out
@@ -412,31 +528,81 @@ class Connection:
 #    arch|endian=[big|bigendian|little|littleendian]
 #
 def np_to_array(img: np.ndarray) -> str:
-    """Convert from NumPy data type to DS9 settings."""
+    """Convert from NumPy data type to DS9 settings.
+
+    Parameters
+    ----------
+    img
+       The array to send. This must be 2D or 3D and not empty.
+
+    Returns
+    -------
+    settings
+       The settings needed by DS9 to decode the data.
+
+    Notes
+    -----
+    This will error out if there is a problem, rather than just
+    display a warning message, as this is expected to be used with a
+    user-supplied array.
+
+    """
 
     # For now restrict to 2D data only
     #
-    if img.ndim != 2:
-        raise ValueError(f"img must be 2D, sent {img.ndim}D")
+    opts = []
+    match img.ndim:
+        case 2:
+            ny, nx = img.shape
+            opts.extend([f"xdim={nx}", f"ydim={ny}"])
 
-    ny, nx = img.shape
+        case 3:
+            nz, ny, nx = img.shape
+            opts.extend([f"xdim={nx}", f"ydim={ny}", f"zdim={nz}"])
+
+        case _:
+            raise ValueError(f"img must be 2D or 3D, sent {img.ndim}D")
+
+    if nx == 0 or ny == 0:
+        raise ValueError("array appears to be empty")
+
     bpix = dtype_to_bitpix(img.dtype)
-    out = f"xdim={nx},ydim={ny},bitpix={bpix}"
+    opts.append(f"bitpix={bpix}")
 
     # Is this needed?
     match img.dtype.byteorder:
         case '<':
-            out += ",arch=little"
+            opts.append("arch=little")
         case '>':
-            out += ",arch=big"
+            opts.append("arch=big")
         case _:  # handle native and not-applicable
             pass
 
+    out = ",".join(opts)
     return f"[{out}]"
 
 
 def dtype_to_bitpix(dtype: np.dtype) -> int:
-    """Convert the data type to DS9/FITS BITPIX setting."""
+    """Convert the data type to DS9/FITS BITPIX setting.
+
+    Parameters
+    ----------
+    dtype
+       The NumPy dtype of the array.
+
+    Return
+    ------
+    bitpix
+       The FITS BITPIX value used to represent the data. This may be a
+       lossy conversion (e.g. unsigned to signed).
+
+    Notes
+    -----
+    This will error out if there is a problem, rather than just
+    display a warning message, as this is expected to be used with a
+    user-supplied array.
+
+    """
 
     # Not trying to be clever here. Can we just piggy back on astropy
     # instead?
@@ -455,8 +621,15 @@ def dtype_to_bitpix(dtype: np.dtype) -> int:
     raise ValueError(f"Unsupported dtype: {dtype}")
 
 
-def bitpix_to_dtype(bpix: int) -> np.dtype:
-    """Convert the DS9/FITS BITPIX setting to a NumPy datatype"""
+def bitpix_to_dtype(bpix: int) -> np.dtype | None:
+    """Convert the DS9/FITS BITPIX setting to a NumPy datatype.
+
+    Notes
+    -----
+    As this is intended to be used with data sent by DS9, errors are
+    not raised, and the routine just returns None.
+
+    """
 
     match bpix:
         case -64: return np.dtype("float64")
@@ -468,7 +641,8 @@ def bitpix_to_dtype(bpix: int) -> np.dtype:
         case 16: return np.dtype("int16")
         case 8: return np.dtype("int8")
 
-        case _: raise ValueError(f"Unsupported BITPIX: {bpix}")
+        case _:
+            return None
 
 
 def start(name: str | None = None,

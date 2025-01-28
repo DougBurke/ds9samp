@@ -1,5 +1,10 @@
 # Changes for ds9samp
 
+## Version 0.0.6 - 2025-01-28
+
+The `send_array` and `retrieve_array` methods can now handle 3D arrays
+as well as 2D ones.
+
 ## Version 0.0.5 - 2025-01-27
 
 Added the `retrieve_array` method, which saves the current frame to a
