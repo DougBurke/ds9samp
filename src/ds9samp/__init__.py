@@ -87,6 +87,21 @@ For more complex cases the creation of the memmap-ed file should be
 done manually, as described in the `DS9 example
 <https://sites.google.com/cfa.harvard.edu/saoimageds9/ds9-astropy>`_.
 
+3D data
+^^^^^^^
+
+3D data can be sent and retrieved with `send_array` and
+`retrieve_array`. If the data should be treated as RGB, HLS, or HSV
+data - that is, the third dimension has 3 elements representing
+
+- red, green, and blue channels
+- hue, lightness, and saturation
+- hue, saturation, and value
+
+then the `send_array` should be called setting the `cube` argument to
+a value from the `Cube` enumeration; that is `Cube.RGB`, `Cube.HLS`,
+or `Cube.HSV`.
+
 Timeouts
 --------
 
@@ -118,6 +133,7 @@ with a command like
 """
 
 from contextlib import contextmanager
+from enum import Enum
 import importlib.metadata
 import os
 import sys
@@ -128,10 +144,23 @@ import numpy as np
 
 from astropy import samp
 
-__all__ = ["ds9samp", "list_ds9"]
+__all__ = ["Cube", "ds9samp", "list_ds9"]
 
 
 VERSION = importlib.metadata.version("ds9samp")
+
+
+class Cube(Enum):
+    """How should a 3D cube be treated by DS9."""
+
+    RGB = 1
+    "Data is stored in Red, Green, Blue order."
+
+    HLS = 2
+    "Data is stored in Hue, Lightness, Saturation order."
+
+    HSV = 3
+    "Data is stored in Hue, Saturation, Value order."
 
 
 def add_color(txt):
@@ -396,6 +425,7 @@ class Connection:
     def send_array(self,
                    img: np.ndarray,
                    *,
+                   cube: Cube | None = None,
                    mask: bool = False,
                    timeout: int | None = None
                    ) -> None:
@@ -405,7 +435,8 @@ class Connection:
         sends the data, and then deletes the file.
 
         .. versionchanged:: 0.0.6
-           3D arrays can now be sent.
+           3D arrays can now be sent and the cube argument used to
+           select what mode 3D data is interpreted as.
 
         .. versionchanged:: 0.0.5
            A DS9 frame will be created if needed. The mask argument
@@ -418,6 +449,9 @@ class Connection:
         ----------
         img:
            The 2D or 3D data to send.
+        cube: optional
+           If 3D data is sent in, should it be treated as RGB, HLS,
+           or HSV format. Leave as None to treat as a generic cube.
         mask: optional
            Should the array be treated as a mask?
         timeout: optional
@@ -470,6 +504,21 @@ class Connection:
 
         arr = np_to_array(img)
 
+        # Validate the cube argument when given.
+        #
+        action = ""
+        if cube is not None:
+            if img.ndim != 3:
+                raise ValueError("data must be 3D to set the cube argument")
+            if img.shape[0] != 3:
+                raise ValueError("z axis must have size 3 when cube argument is set")
+
+            match cube:
+                case Cube.RGB: action = "rgb"
+                case Cube.HLS: action = "hls"
+                case Cube.HSV: action = "hsv"
+                case _: raise ValueError(f"Invalid argument: cube={cube}")
+
         # Create a frame if necessary, since otherwise the ARRAY call
         # will fail.
         #
@@ -483,11 +532,21 @@ class Connection:
             fp[:] = img
             fp.flush()
 
+            # If given a RGB/HLS/HSV cube then create a frame. We
+            # could try and check if we have one already, but it's not
+            # clear how to do this, so always create it. If a user
+            # wants to re-use the frame then they can try and do this
+            # manually (probably by creating a FITS file and loading
+            # that?).
+            #
+            if action != "":
+                self.set(action, timeout=timeout)
+
             # Should this over-ride the filename as it is going to be
             # invalid as soon as this call ends? I am not sure that it
             # is possible.
             #
-            cmd = "array "
+            cmd = f"{action}array "
             if mask:
                 cmd += "mask "
             cmd += f" {fh.name}{arr}"
