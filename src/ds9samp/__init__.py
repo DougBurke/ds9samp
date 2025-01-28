@@ -142,7 +142,8 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from astropy import samp  # type: ignore
+from astropy import samp     # type: ignore
+# from astropy.io import fits  # type: ignore
 
 __all__ = ["Cube", "ds9samp", "list_ds9"]
 
@@ -250,6 +251,41 @@ def warning(msg: str) -> None:
     print(f"{lhs} {msg}")
 
 
+def extract_url(url: str) -> str | None:
+    """Read in the URL and return the values.
+
+    It relies on heuristics to determine the type of the data pointed
+    to by the URL. Unfortunately this is currently underspecified.
+
+    """
+
+    res = urlparse(url)
+
+    # We could also check that res.netloc == "localhost" but I do
+    # not know if the tcl URL stack is guaranteed to use
+    # localhost, so just assume it is local.
+    #
+    if res.scheme != "file":
+        error(f"expected file url, not {url}")
+        return None
+
+    if res.path.endswith('.dat'):
+        # What's the best encoding?
+        with open(res.path, mode="rt", encoding="ascii") as fh:
+            return fh.read()
+
+    if res.path.endswith('.fits'):
+        # Should this extract the data (assuming the input is an
+        # image)? Also, how do we convert to a string?
+        #
+        # return fits.open(res.path)
+        error("Unable to convert FITS file to a string")
+        return None
+
+    error(f"Unable to determine contents of {url}")
+    return None
+
+
 class Connection:
     """Store the DS9 connection.
 
@@ -351,18 +387,7 @@ class Connection:
             if self.debug:
                 debug(f"DS9 returned data in URL={url}")
 
-            res = urlparse(url)
-            if res.scheme != "file":
-                error(f"expected file url, not {url}")
-                return None
-
-            # We could check that res.netloc == "localhost" but I do
-            # not know if the tcl URL stack is guaranteed to use
-            # localhost, so just assume it is local.
-            #
-            # What's the best encoding?
-            with open(res.path, mode="rt", encoding="ascii") as fh:
-                return fh.read()
+            return extract_url(url)
 
         return None
 
