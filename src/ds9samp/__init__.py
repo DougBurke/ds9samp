@@ -495,6 +495,15 @@ class Connection:
         either error out or choose a lossy conversion (e.g. unsigned
         to signed integers of the same size).
 
+        This call provides access to the:
+
+        - `array <https://ds9.si.edu/doc/ref/samp.html#array>`_,
+        - `hlsarray <https://ds9.si.edu/doc/ref/samp.html#hlsarray>`_,
+        - `hsvarray <https://ds9.si.edu/doc/ref/samp.html#hsvarray>`_,
+        - and `rgbarray <https://ds9.si.edu/doc/ref/samp.html#rgbarray>`_
+
+        commands.
+
         Examples
         --------
 
@@ -600,6 +609,9 @@ class Connection:
 
         Notes
         -----
+
+        This call provides access to the `export array
+        <https://ds9.si.edu/doc/ref/samp.html#export>`_ command.
 
         An alternative would be to get DS9 to create a FITS file and
         then read that in.
