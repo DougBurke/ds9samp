@@ -257,6 +257,7 @@ Examples:
 options:
   -h, --help  show this help message and exit
   --version   show program's version number and exit
+  --verbose   report the metadata from each client
 ```
 
 As an example:
@@ -267,9 +268,34 @@ As an example:
 % ds9 &
 % ds9samp_list
 There is one DS9 client: c1
-& ds9 &
+% ds9 -title another-ds9 &
 % ds9samp_list
 There are 2 DS9 clients: c1 c3
+% ds9samp_list --verbose
+There are 2 DS9 clients: c1 c3
+
+* client c1
+  samp.name  ds9
+  home.page  http://ds9.si.edu/
+  ds9.version 8.6
+  samp.icon.url http://ds9.si.edu/sun.png
+  author.email ds9help@cfa.harvard.edu
+  samp.description.text SAOImageDS9 is an astronomical visualization application
+  samp.documentation.url http://ds9.si.edu/doc/ref/index.html
+  author.name William Joye
+  author.affiliation Smithsonian Astrophysical Observatory
+
+* client c3
+  samp.name  another-ds9
+  home.page  http://ds9.si.edu/
+  ds9.version 8.6
+  samp.icon.url http://ds9.si.edu/sun.png
+  author.email ds9help@cfa.harvard.edu
+  samp.description.text SAOImageDS9 is an astronomical visualization application
+  samp.documentation.url http://ds9.si.edu/doc/ref/index.html
+  author.name William Joye
+  author.affiliation Smithsonian Astrophysical Observatory
+
 ```
 
 ### What happens if there are multiple DS9 instances?
