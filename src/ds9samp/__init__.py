@@ -102,6 +102,19 @@ then the `send_array` should be called setting the `cube` argument to
 a value from the `Cube` enumeration; that is `Cube.RGB`, `Cube.HLS`,
 or `Cube.HSV`.
 
+FITS data
+^^^^^^^^^
+
+FITS data - as represented by AstroPy `FITS objects
+<https://docs.astropy.org/en/stable/io/fits/index.html>`_ - can
+also be sent and retrieved, as of version 0.0.7, using the
+`send_fits` and `retrieve_fits` methods.
+
+If a table is sent, then DS9 will select what columns to bin, although
+the `bin command <https://ds9.si.edu/doc/ref/samp.html#bin>`_ can be
+used to control the process. Attempts to retrieve a FITS file from
+such a dataset will return an image, and not the underlying table.
+
 Timeouts
 --------
 
@@ -138,16 +151,34 @@ import importlib.metadata
 import os
 import sys
 import tempfile
+from typing import Protocol
 from urllib.parse import urlparse
 
 import numpy as np
 
-from astropy import samp  # type: ignore
+from astropy import samp     # type: ignore
+from astropy.io import fits  # type: ignore
 
 __all__ = ["Cube", "ds9samp", "list_ds9"]
 
 
 VERSION = importlib.metadata.version("ds9samp")
+
+
+class SupportsWriteTo(Protocol):
+    """Represent objects with a writeto method.
+
+    This is to represent astropy.io.fits objects.
+
+    """
+
+    # How best to mark the optional arguments?
+    def writeto(self,
+                fileobj,
+                output_verify: str,
+                overwrite: bool,
+                checksum: bool) -> None:
+        ...
 
 
 class Cube(Enum):
@@ -248,6 +279,41 @@ def warning(msg: str) -> None:
     #
     lhs = add_color("WARNING:")
     print(f"{lhs} {msg}")
+
+
+def extract_url(url: str) -> str | None:
+    """Read in the URL and return the values.
+
+    It relies on heuristics to determine the type of the data pointed
+    to by the URL. Unfortunately this is currently underspecified.
+
+    """
+
+    res = urlparse(url)
+
+    # We could also check that res.netloc == "localhost" but I do
+    # not know if the tcl URL stack is guaranteed to use
+    # localhost, so just assume it is local.
+    #
+    if res.scheme != "file":
+        error(f"expected file url, not {url}")
+        return None
+
+    if res.path.endswith('.dat'):
+        # What's the best encoding?
+        with open(res.path, mode="rt", encoding="ascii") as fh:
+            return fh.read()
+
+    if res.path.endswith('.fits'):
+        # Should this extract the data (assuming the input is an
+        # image)? Also, how do we convert to a string?
+        #
+        # return fits.open(res.path)
+        error("Unable to convert FITS file to a string")
+        return None
+
+    error(f"Unable to determine contents of {url}")
+    return None
 
 
 class Connection:
@@ -351,18 +417,7 @@ class Connection:
             if self.debug:
                 debug(f"DS9 returned data in URL={url}")
 
-            res = urlparse(url)
-            if res.scheme != "file":
-                error(f"expected file url, not {url}")
-                return None
-
-            # We could check that res.netloc == "localhost" but I do
-            # not know if the tcl URL stack is guaranteed to use
-            # localhost, so just assume it is local.
-            #
-            # What's the best encoding?
-            with open(res.path, mode="rt", encoding="ascii") as fh:
-                return fh.read()
+            return extract_url(url)
 
         return None
 
@@ -460,7 +515,7 @@ class Connection:
 
         See Also
         --------
-        retrieve_array
+        send_fits, retrieve_array
 
         Notes
         -----
@@ -469,6 +524,15 @@ class Connection:
         as complex numbers or unsigned integers, so the code may
         either error out or choose a lossy conversion (e.g. unsigned
         to signed integers of the same size).
+
+        This call provides access to the:
+
+        - `array <https://ds9.si.edu/doc/ref/samp.html#array>`_,
+        - `hlsarray <https://ds9.si.edu/doc/ref/samp.html#hlsarray>`_,
+        - `hsvarray <https://ds9.si.edu/doc/ref/samp.html#hsvarray>`_,
+        - and `rgbarray <https://ds9.si.edu/doc/ref/samp.html#rgbarray>`_
+
+        commands.
 
         Examples
         --------
@@ -571,10 +635,13 @@ class Connection:
 
         See Also
         --------
-        send_array
+        send_array, retrieve_fits
 
         Notes
         -----
+
+        This call provides access to the `export array
+        <https://ds9.si.edu/doc/ref/samp.html#export>`_ command.
 
         An alternative would be to get DS9 to create a FITS file and
         then read that in.
@@ -642,6 +709,146 @@ class Connection:
             out = fp[:]
 
         return out
+
+    def send_fits(self,
+                  data: SupportsWriteTo,
+                  *,
+                  mask: bool = False,
+                  timeout: int | None = None
+                  ) -> None:
+        """Send the FITS data to DS9.
+
+        This creates a temporary file to store the data,
+        sends the data, and then deletes the file.
+
+        .. versionadded:: 0.0.7
+
+        Parameters
+        ----------
+        data:
+           The data to send. It can be a HDUList or an individual FITS
+           extension.
+        mask: optional
+           Should the data be treated as a mask?
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        See Also
+        --------
+        send_array, retrieve_fits
+
+        Notes
+        -----
+
+        This call provides access to the `fits <https://ds9.si.edu/doc/ref/samp.html#fits>`_ call.
+
+        The behaviour of DS9 will depend on the data, such as if it is
+        a 2D or 2D image, or a table that can be automatically binned
+        to an image.
+
+        Invalid or missing metadata will be automatically converted by
+        AstroPy, using the `fits+warn
+        <https://docs.astropy.org/en/stable/io/fits/usage/verification.html#verification-options>`_
+        verification option.
+
+        """
+
+        # We could try and validate the input argument but it's not
+        # simple to do, so skip this step for now.
+        #
+        with tempfile.NamedTemporaryFile(prefix="ds9samp",
+                                         suffix=".fits") as fh:
+
+            # Correct any metadata. If this conversion causes a
+            # problem for the user then they need to manually
+            # replicate this code.
+            #
+            data.writeto(fh, output_verify="fix+warn", checksum=True,
+                         overwrite=True)
+
+            # Should this over-ride the filename as it is going to be
+            # invalid as soon as this call ends? I am not sure that it
+            # is possible.
+            #
+            cmd = "fits "
+            if mask:
+                cmd += "mask "
+            cmd += f" {fh.name}"
+            self.set(cmd, timeout=timeout)
+
+    def retrieve_fits(self,
+                       *,
+                       timeout: int | None = None
+                       ) -> fits.HDUList | None:
+        """Get the current frame as a FITS dataset.
+
+        .. versionadded:: 0.0.7
+
+        Parameters
+        ----------
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        See Also
+        --------
+        send_fits, retrieve_array
+
+        Notes
+        -----
+
+        This call provides access to the `fits
+        <https://ds9.si.edu/doc/ref/samp.html#fits>`_ command.
+
+        """
+
+        # TODO: need to abstract this behaviour rather than replicate
+        # most of the get method.
+        #
+        command = "fits"
+        tout = self.timeout if timeout is None else timeout
+        tout_str = str(int(tout))
+        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
+                                      timeout=tout_str, cmd=command)
+
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.get {command} timeout={tout_str}")
+            debug(str(out))
+
+        status = out["samp.status"]
+        if status != "samp.ok":
+            evals = out["samp.error"]
+            try:
+                emsg = f"DS9 reported: {evals['samp.errortxt']}"
+            except KeyError:
+                emsg = "Unknown DS9 error"
+
+            if status == "samp.error":
+                error(emsg)
+                return None
+
+            warning(emsg)
+
+        # The result is assumed to be given by the url field.
+        # Any other response is an error.
+        #
+        result = out["samp.result"]
+        url = result.get("url")
+        if url is None:
+            error("SAMP call returned unexpected data")
+            return None
+
+        res = urlparse(url)
+        if res.scheme != "file":
+            error(f"expected file url, not {url}")
+            return None
+
+        if not res.path.endswith(".fits"):
+            warning(f"expected file url to end in .fits")
+
+        return fits.open(res.path)
 
 
 # From https://ds9.si.edu/doc/ref/file.html the array command says
