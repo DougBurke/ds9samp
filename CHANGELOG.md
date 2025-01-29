@@ -2,6 +2,10 @@
 
 ## Version 0.0.7 - 2025-01-29
 
+Added the `send_fits` and `retrieve_fits` methods to allow you to
+directly work with [AstroPy FITS
+objects](https://docs.astropy.org/en/stable/io/fits/index.html).
+
 The `ds9samp_list` tool has gained the `--verbose` flag, which displays
 the metadata for each DS9 instance that it finds.
 
