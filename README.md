@@ -241,7 +241,23 @@ As examples:
 
 #### ds9samp_list
 
-The `ds9samp_list` script ignores any arguments or command-line options.
+```
+% ds9samp_list --help
+usage: ds9samp_list [options]
+
+Display the names of the DS9 clients attached to the SAMP hub.
+
+Examples:
+
+    % ds9samp_list
+    There is one DS9 client: c1
+    % ds9samp_list
+    There are 2 DS9 clients: c1 c56
+
+options:
+  -h, --help  show this help message and exit
+  --version   show program's version number and exit
+```
 
 As an example:
 
