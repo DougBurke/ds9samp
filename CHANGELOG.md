@@ -1,5 +1,10 @@
 # Changes for ds9samp
 
+## Version 0.0.7 - 2025-01-29
+
+The `ds9samp_list` tool has gained the `--verbose` flag, which displays
+the metadata for each DS9 instance that it finds.
+
 ## Version 0.0.6 - 2025-01-28
 
 The `send_array` and `retrieve_array` methods can now handle 3D arrays

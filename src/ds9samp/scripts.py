@@ -179,8 +179,10 @@ Examples:
     parser = ArgumentParser(usage=usage, description=desc,
                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--version", action="version", version=VERSION)
+    parser.add_argument("--verbose", action="store_true",
+                        help="report the metadata from each client")
 
-    parser.parse_args()
+    args = parser.parse_args()
 
     clients = list_ds9()
     nclients = len(clients)
@@ -189,7 +191,18 @@ Examples:
 
     if nclients == 1:
         print(f"There is one DS9 client: {clients[0]}")
+    else:
+        names = " ".join(clients)
+        print(f"There are {nclients} DS9 clients: {names}")
+
+    if not args.verbose:
         return
 
-    names = " ".join(clients)
-    print(f"There are {nclients} DS9 clients: {names}")
+    print("")
+    for client in clients:
+        with ds9samp(client=client) as ds9:
+            print(f"* client {client}")
+            for k, v in ds9.metadata.items():
+                print(f"  {k:10s} {v}")
+
+            print("")
