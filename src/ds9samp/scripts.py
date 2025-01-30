@@ -19,18 +19,31 @@ def parse(desc):
     """Common parser"""
 
     usage = "%(prog)s [options] command"
-    parser = ArgumentParser(usage=usage, description=desc,
-                            formatter_class=RawDescriptionHelpFormatter)
+    parser = ArgumentParser(
+        usage=usage,
+        description=desc,
+        formatter_class=RawDescriptionHelpFormatter,
+    )
     parser.add_argument("command")
-    parser.add_argument("-n", "--name", type=str,
-                        dest="client",
-                        help="Name of DS9 client in the SAMP hub")
-    parser.add_argument("-t", "--timeout", type=int,
-                        dest="timeout", default=10,
-                        help="Timeout in seconds (integer, use 0 to disable)")
+    parser.add_argument(
+        "-n",
+        "--name",
+        type=str,
+        dest="client",
+        help="Name of DS9 client in the SAMP hub",
+    )
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=int,
+        dest="timeout",
+        default=10,
+        help="Timeout in seconds (integer, use 0 to disable)",
+    )
     parser.add_argument("--version", action="version", version=VERSION)
-    parser.add_argument("--debug", action="store_true",
-                        help="Provide debugging output")
+    parser.add_argument(
+        "--debug", action="store_true", help="Provide debugging output"
+    )
 
     return parser.parse_args()
 
@@ -48,14 +61,18 @@ def handle_error(name):
             try:
                 return fn(*args, **kwargs)
             except Exception as exc:
-                emsg = add_color(f"# ds9samp_{name} ({VERSION}):") + \
-                    f" ERROR {exc}\n"
+                emsg = (
+                    add_color(f"# ds9samp_{name} ({VERSION}):")
+                    + f" ERROR {exc}\n"
+                )
                 sys.stderr.write(emsg)
                 sys.exit(1)
 
             except KeyboardInterrupt:
-                sys.stderr.write(add_color("# ds9samp_{name}:") +
-                                 " Keyboard interrupt (control c)\n")
+                sys.stderr.write(
+                    add_color("# ds9samp_{name}:")
+                    + " Keyboard interrupt (control c)\n"
+                )
                 sys.exit(1)
 
         new_fn.__doc__ = fn.__doc__
@@ -131,7 +148,7 @@ Examples:
             if args.debug:
                 debug("Reading commands from stdin")
 
-            commands = sys.stdin.read().split('\n')
+            commands = sys.stdin.read().split("\n")
 
         else:
             if args.debug:
@@ -139,11 +156,11 @@ Examples:
 
             # SAMP commands look to be ASCII not UTF-8.
             with open(args.command[1:], encoding="ascii", mode="rt") as fh:
-                commands = fh.read().split('\n')
+                commands = fh.read().split("\n")
 
     else:
         # Note that argparse converts \n to \\n, hence the odd split call.
-        commands = args.command.split('\\n')
+        commands = args.command.split("\\n")
 
     with ds9samp(client=args.client) as ds9:
         if args.debug:
@@ -152,7 +169,7 @@ Examples:
 
         ds9.timeout = args.timeout
         for command in commands:
-            if command.strip() == '':
+            if command.strip() == "":
                 continue
 
             if args.debug:
@@ -176,11 +193,17 @@ Examples:
 
 """
     usage = "%(prog)s [options]"
-    parser = ArgumentParser(usage=usage, description=desc,
-                            formatter_class=RawDescriptionHelpFormatter)
+    parser = ArgumentParser(
+        usage=usage,
+        description=desc,
+        formatter_class=RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--version", action="version", version=VERSION)
-    parser.add_argument("--verbose", action="store_true",
-                        help="report the metadata from each client")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="report the metadata from each client",
+    )
 
     args = parser.parse_args()
 
