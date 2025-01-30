@@ -115,6 +115,15 @@ the `bin command <https://ds9.si.edu/doc/ref/samp.html#bin>`_ can be
 used to control the process. Attempts to retrieve a FITS file from
 such a dataset will return an image, and not the underlying table.
 
+Catalogs
+--------
+
+As of version 0.0.8, catalogs can be sent and retrieved using the
+`send_cat` and `retrieve_cat` methods. The `send_cat` method
+will send an AstroPy `Table <https://docs.astropy.org/en/stable/table/index.html>`_
+or a `FITS table <https://docs.astropy.org/en/stable/io/fits/index.html>`_
+to DS9, and `retrieve_cat` returns a `Table`.
+
 Timeouts
 --------
 
@@ -156,8 +165,10 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from astropy import samp     # type: ignore
-from astropy.io import fits  # type: ignore
+from astropy import samp         # type: ignore
+from astropy.io import fits      # type: ignore
+from astropy.table import Table  # type: ignore
+
 
 __all__ = ["Cube", "ds9samp", "list_ds9"]
 
@@ -344,6 +355,58 @@ class Connection:
 
         return f"Connection to DS9 {version} (client {self.client})"
 
+    def _get(self,
+            command: str,
+            timeout: int | None = None
+            ) -> str | dict[str, str]:
+        """Call ds9.get for the given command and arguments.
+
+        If the call fails then an error message is displayed (to
+        stdout) and None is returned. This call will raise an error if
+        there is a SAMP commmunication problem.
+
+        Parameters
+        ----------
+        command
+           The DS9 command to call, e.g. "cmap"
+        timeout: optional
+           Over-ride the default timeout setting. Use 0 to remove
+           any timeout.
+
+        Returns
+        -------
+        retval
+           The dictionary represents the 'samp.result' field of the
+           query, and may be empty.
+
+        """
+
+        tout = self.timeout if timeout is None else timeout
+        tout_str = str(int(tout))
+        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
+                                      timeout=tout_str, cmd=command)
+
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.get {command} timeout={tout_str}")
+            debug(str(out))
+
+        status = out["samp.status"]
+        if status != "samp.ok":
+            evals = out["samp.error"]
+            try:
+                emsg = f"DS9 reported: {evals['samp.errortxt']}"
+            except KeyError:
+                emsg = "Unknown DS9 error"
+
+            if status == "samp.error":
+                error(emsg)
+                return None
+
+            warning(emsg)
+
+        return out["samp.result"]
+
     def get(self,
             command: str,
             timeout: int | None = None
@@ -375,36 +438,12 @@ class Connection:
 
         """
 
-        tout = self.timeout if timeout is None else timeout
-        tout_str = str(int(tout))
-        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
-                                      timeout=tout_str, cmd=command)
-
-        if self.debug:
-            # Can we display the output in a structured form?
-            debug(f"ds9.get {command} timeout={tout_str}")
-            debug(str(out))
-
-        status = out["samp.status"]
-        if status != "samp.ok":
-            evals = out["samp.error"]
-            try:
-                emsg = f"DS9 reported: {evals['samp.errortxt']}"
-            except KeyError:
-                emsg = "Unknown DS9 error"
-
-            if status == "samp.error":
-                error(emsg)
-                return None
-
-            warning(emsg)
-
         # The result is assumed to be one of:
         #  - the value field
         #  - the url field
         #  - otherwise we just return None
         #
-        result = out["samp.result"]
+        result = self._get(command=command, timeout=timeout)
         value = result.get("value")
         if value is not None:
             return value
@@ -420,7 +459,6 @@ class Connection:
             return extract_url(url)
 
         return None
-
 
     def set(self,
             command: str,
@@ -803,38 +841,10 @@ class Connection:
 
         """
 
-        # TODO: need to abstract this behaviour rather than replicate
-        # most of the get method.
-        #
-        command = "fits"
-        tout = self.timeout if timeout is None else timeout
-        tout_str = str(int(tout))
-        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
-                                      timeout=tout_str, cmd=command)
-
-        if self.debug:
-            # Can we display the output in a structured form?
-            debug(f"ds9.get {command} timeout={tout_str}")
-            debug(str(out))
-
-        status = out["samp.status"]
-        if status != "samp.ok":
-            evals = out["samp.error"]
-            try:
-                emsg = f"DS9 reported: {evals['samp.errortxt']}"
-            except KeyError:
-                emsg = "Unknown DS9 error"
-
-            if status == "samp.error":
-                error(emsg)
-                return None
-
-            warning(emsg)
-
         # The result is assumed to be given by the url field.
         # Any other response is an error.
         #
-        result = out["samp.result"]
+        result = self._get(command="fits", timeout=timeout)
         url = result.get("url")
         if url is None:
             error("SAMP call returned unexpected data")
@@ -849,6 +859,118 @@ class Connection:
             warning(f"expected file url to end in .fits")
 
         return fits.open(res.path)
+
+    def send_cat(self,
+                 data: Table | SupportsWriteTo,
+                 *,
+                 timeout: int | None = None
+                 ) -> None:
+        """Send the catalog to DS9.
+
+        This creates a temporary file to store the data as a FITS
+        file, sends the data, and then deletes the file.
+
+        .. versionadded:: 0.0.8
+
+        Parameters
+        ----------
+        data:
+           The data to send. It should be an AstroPy `Table` or
+           contain a FITS table.
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        See Also
+        --------
+        send_fits, retrieve_cat
+
+        Notes
+        -----
+
+        This call provides access to the `catalog import fits
+        <https://ds9.si.edu/doc/ref/samp.html#cat>`_ command.
+
+        """
+
+        # Limited validation of the input argument.
+        #
+        with tempfile.NamedTemporaryFile(prefix="ds9samp",
+                                         suffix=".fits") as fh:
+
+            try:
+                # Is this a Table?
+                data.write(fh, format='fits', overwrite=True)
+
+            except AttributeError:
+                # Is this a FITS object? Add some basic validation
+                # checks.
+                #
+                if isinstance(data, fits.PrimaryHDU):
+                    raise ValueError("data must be a table, not a PrimaryHDU") from None
+
+                try:
+                    check = [isinstance(elem, (fits.PrimaryHDU, fits.ImageHDU))
+                             for elem in data]
+                except TypeError:
+                    # Assume not iterable
+                    check = [False]
+
+                if all(check):
+                    raise ValueError("data mut be a table, not image(s)") from None
+
+                data.writeto(fh, overwrite=True,
+                             output_verify="fix+warn")
+
+            cmd = f"catalog import fits {fh.name}"
+            self.set(cmd, timeout=timeout)
+
+    def retrieve_cat(self,
+                     *,
+                     timeout: int | None = None
+                     ) -> Table | None:
+        """Retrive the current catalog.
+
+        .. versionadded:: 0.0.8
+
+        Parameters
+        ----------
+        timeout: optional
+           The timeout, in seconds. If not set then use the
+           default timeout value.
+
+        See Also
+        --------
+        send_cat, retrieve_fits
+
+        Notes
+        -----
+
+        This call provides access to the `catalog export
+        <https://ds9.si.edu/doc/ref/samp.html#export>`_ command.
+
+        """
+
+        # Is this a sensible way to check if a catalog is present?
+        #
+        if self.get("catalog show") is None:
+            return None
+
+        with tempfile.NamedTemporaryFile(prefix="ds9samp",
+                                         suffix=".rdb") as fh:
+            # Format options are rdb and tsv. My inital tests with rdb
+            # showed a mis-match between DS9 and AstroPy so go with
+            # tsv.
+            #
+            cmd = f"catalog export tsv {fh.name}"
+            self.set(cmd, timeout=timeout)
+
+            tbl = Table.read(fh, format="ascii.csv", delimiter='\t')
+
+        # We could return the Table or convert to FITS. Leave as a
+        # table for now.
+        #
+        return tbl
 
 
 # From https://ds9.si.edu/doc/ref/file.html the array command says
