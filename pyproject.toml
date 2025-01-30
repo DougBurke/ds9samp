@@ -39,3 +39,7 @@ Issues = "https://github.com/cxcsds/ds9samp/issues"
 ds9samp_get = "ds9samp.scripts:main_get"
 ds9samp_set = "ds9samp.scripts:main_set"
 ds9samp_list = "ds9samp.scripts:main_list"
+
+[tool.ruff]
+# For some reason, I like 80.
+line-length = 80

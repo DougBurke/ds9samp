@@ -165,8 +165,8 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from astropy import samp         # type: ignore
-from astropy.io import fits      # type: ignore
+from astropy import samp  # type: ignore
+from astropy.io import fits  # type: ignore
 from astropy.table import Table  # type: ignore
 
 
@@ -184,12 +184,9 @@ class SupportsWriteTo(Protocol):
     """
 
     # How best to mark the optional arguments?
-    def writeto(self,
-                fileobj,
-                output_verify: str,
-                overwrite: bool,
-                checksum: bool) -> None:
-        ...
+    def writeto(
+        self, fileobj, output_verify: str, overwrite: bool, checksum: bool
+    ) -> None: ...
 
 
 class Cube(Enum):
@@ -217,7 +214,7 @@ def add_color(txt):
     if not sys.stderr.isatty():
         return txt
 
-    if os.getenv('NO_COLOR') is not None:
+    if os.getenv("NO_COLOR") is not None:
         return txt
 
     return f"\033[1;31m{txt}\033[0;0m"
@@ -310,12 +307,12 @@ def extract_url(url: str) -> str | None:
         error(f"expected file url, not {url}")
         return None
 
-    if res.path.endswith('.dat'):
+    if res.path.endswith(".dat"):
         # What's the best encoding?
         with open(res.path, mode="rt", encoding="ascii") as fh:
             return fh.read()
 
-    if res.path.endswith('.fits'):
+    if res.path.endswith(".fits"):
         # Should this extract the data (assuming the input is an
         # image)? Also, how do we convert to a string?
         #
@@ -335,11 +332,7 @@ class Connection:
 
     """
 
-    def __init__(self,
-                 ds9: samp.SAMPIntegratedClient,
-                 client: str
-                 ) -> None:
-
+    def __init__(self, ds9: samp.SAMPIntegratedClient, client: str) -> None:
         self.ds9 = ds9
         self.client = client
         self.debug = False
@@ -349,16 +342,15 @@ class Connection:
 
     def __str__(self) -> str:
         try:
-            version = self.metadata['ds9.version']
+            version = self.metadata["ds9.version"]
         except KeyError:
             version = "<unknown>"
 
         return f"Connection to DS9 {version} (client {self.client})"
 
-    def _get(self,
-            command: str,
-            timeout: int | None = None
-            ) -> str | dict[str, str]:
+    def _get(
+        self, command: str, timeout: int | None = None
+    ) -> str | dict[str, str]:
         """Call ds9.get for the given command and arguments.
 
         If the call fails then an error message is displayed (to
@@ -383,8 +375,9 @@ class Connection:
 
         tout = self.timeout if timeout is None else timeout
         tout_str = str(int(tout))
-        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
-                                      timeout=tout_str, cmd=command)
+        out = self.ds9.ecall_and_wait(
+            self.client, "ds9.get", timeout=tout_str, cmd=command
+        )
 
         if self.debug:
             # Can we display the output in a structured form?
@@ -407,10 +400,7 @@ class Connection:
 
         return out["samp.result"]
 
-    def get(self,
-            command: str,
-            timeout: int | None = None
-            ) -> str | None:
+    def get(self, command: str, timeout: int | None = None) -> str | None:
         """Call ds9.get for the given command and arguments.
 
         If the call fails then an error message is displayed (to
@@ -460,10 +450,7 @@ class Connection:
 
         return None
 
-    def set(self,
-            command: str,
-            timeout: int | None = None
-            ) -> None:
+    def set(self, command: str, timeout: int | None = None) -> None:
         """Call ds9.set for the given command and arguments.
 
         If the call fails then an error message is displayed (to
@@ -490,8 +477,9 @@ class Connection:
         #
         tout = self.timeout if timeout is None else timeout
         tout_str = str(int(tout))
-        out = self.ds9.ecall_and_wait(self.client, "ds9.set",
-                                      timeout=tout_str, cmd=command)
+        out = self.ds9.ecall_and_wait(
+            self.client, "ds9.set", timeout=tout_str, cmd=command
+        )
 
         if self.debug:
             # Can we display the output in a structured form?
@@ -515,13 +503,14 @@ class Connection:
 
         error(emsg)
 
-    def send_array(self,
-                   img: np.ndarray,
-                   *,
-                   cube: Cube | None = None,
-                   mask: bool = False,
-                   timeout: int | None = None
-                   ) -> None:
+    def send_array(
+        self,
+        img: np.ndarray,
+        *,
+        cube: Cube | None = None,
+        mask: bool = False,
+        timeout: int | None = None,
+    ) -> None:
         """Send the array to DS9.
 
         This creates a temporary file to store the data,
@@ -613,7 +602,9 @@ class Connection:
             if img.ndim != 3:
                 raise ValueError("data must be 3D to set the cube argument")
             if img.shape[0] != 3:
-                raise ValueError("z axis must have size 3 when cube argument is set")
+                raise ValueError(
+                    "z axis must have size 3 when cube argument is set"
+                )
 
             match cube:
                 case Cube.RGB:
@@ -632,10 +623,8 @@ class Connection:
         if self.get("frame active") is None:
             self.set("frame new")
 
-        with tempfile.NamedTemporaryFile(prefix="ds9samp",
-                                         suffix=".arr") as fh:
-            fp = np.memmap(fh, mode='w+', dtype=img.dtype,
-                           shape=img.shape)
+        with tempfile.NamedTemporaryFile(prefix="ds9samp", suffix=".arr") as fh:
+            fp = np.memmap(fh, mode="w+", dtype=img.dtype, shape=img.shape)
             fp[:] = img
             fp.flush()
 
@@ -659,10 +648,9 @@ class Connection:
             cmd += f" {fh.name}{arr}"
             self.set(cmd, timeout=timeout)
 
-    def retrieve_array(self,
-                       *,
-                       timeout: int | None = None
-                       ) -> np.ndarray | None:
+    def retrieve_array(
+        self, *, timeout: int | None = None
+    ) -> np.ndarray | None:
         """Get the current frame as a NumPy array.
 
         .. versionchanged:: 0.0.6
@@ -743,22 +731,22 @@ class Connection:
         else:
             shape = (ny, nx)
 
-        with tempfile.NamedTemporaryFile(prefix="ds9samp",
-                                         suffix=".arr") as fh:
+        with tempfile.NamedTemporaryFile(prefix="ds9samp", suffix=".arr") as fh:
             cmd = f"export array {fh.name} native"
             self.set(cmd, timeout=timeout)
 
-            fp = np.memmap(fh.name, dtype=dtype, mode='r', shape=shape)
+            fp = np.memmap(fh.name, dtype=dtype, mode="r", shape=shape)
             out = fp[:]
 
         return out
 
-    def send_fits(self,
-                  data: SupportsWriteTo,
-                  *,
-                  mask: bool = False,
-                  timeout: int | None = None
-                  ) -> None:
+    def send_fits(
+        self,
+        data: SupportsWriteTo,
+        *,
+        mask: bool = False,
+        timeout: int | None = None,
+    ) -> None:
         """Send the FITS data to DS9.
 
         This creates a temporary file to store the data,
@@ -800,15 +788,16 @@ class Connection:
         # We could try and validate the input argument but it's not
         # simple to do, so skip this step for now.
         #
-        with tempfile.NamedTemporaryFile(prefix="ds9samp",
-                                         suffix=".fits") as fh:
-
+        with tempfile.NamedTemporaryFile(
+            prefix="ds9samp", suffix=".fits"
+        ) as fh:
             # Correct any metadata. If this conversion causes a
             # problem for the user then they need to manually
             # replicate this code.
             #
-            data.writeto(fh, output_verify="fix+warn", checksum=True,
-                         overwrite=True)
+            data.writeto(
+                fh, output_verify="fix+warn", checksum=True, overwrite=True
+            )
 
             # Should this over-ride the filename as it is going to be
             # invalid as soon as this call ends? I am not sure that it
@@ -820,10 +809,9 @@ class Connection:
             cmd += f" {fh.name}"
             self.set(cmd, timeout=timeout)
 
-    def retrieve_fits(self,
-                       *,
-                       timeout: int | None = None
-                       ) -> fits.HDUList | None:
+    def retrieve_fits(
+        self, *, timeout: int | None = None
+    ) -> fits.HDUList | None:
         """Get the current frame as a FITS dataset.
 
         .. versionadded:: 0.0.7
@@ -865,11 +853,9 @@ class Connection:
 
         return fits.open(res.path)
 
-    def send_cat(self,
-                 data: Table | SupportsWriteTo,
-                 *,
-                 timeout: int | None = None
-                 ) -> None:
+    def send_cat(
+        self, data: Table | SupportsWriteTo, *, timeout: int | None = None
+    ) -> None:
         """Send the catalog to DS9.
 
         This creates a temporary file to store the data as a FITS
@@ -900,40 +886,42 @@ class Connection:
 
         # Limited validation of the input argument.
         #
-        with tempfile.NamedTemporaryFile(prefix="ds9samp",
-                                         suffix=".fits") as fh:
-
+        with tempfile.NamedTemporaryFile(
+            prefix="ds9samp", suffix=".fits"
+        ) as fh:
             try:
                 # Is this a Table?
-                data.write(fh, format='fits', overwrite=True)
+                data.write(fh, format="fits", overwrite=True)
 
             except AttributeError:
                 # Is this a FITS object? Add some basic validation
                 # checks.
                 #
                 if isinstance(data, fits.PrimaryHDU):
-                    raise ValueError("data must be a table, not a PrimaryHDU") from None
+                    raise ValueError(
+                        "data must be a table, not a PrimaryHDU"
+                    ) from None
 
                 try:
-                    check = [isinstance(elem, (fits.PrimaryHDU, fits.ImageHDU))
-                             for elem in data]
+                    check = [
+                        isinstance(elem, (fits.PrimaryHDU, fits.ImageHDU))
+                        for elem in data
+                    ]
                 except TypeError:
                     # Assume not iterable
                     check = [False]
 
                 if all(check):
-                    raise ValueError("data mut be a table, not image(s)") from None
+                    raise ValueError(
+                        "data mut be a table, not image(s)"
+                    ) from None
 
-                data.writeto(fh, overwrite=True,
-                             output_verify="fix+warn")
+                data.writeto(fh, overwrite=True, output_verify="fix+warn")
 
             cmd = f"catalog import fits {fh.name}"
             self.set(cmd, timeout=timeout)
 
-    def retrieve_cat(self,
-                     *,
-                     timeout: int | None = None
-                     ) -> Table | None:
+    def retrieve_cat(self, *, timeout: int | None = None) -> Table | None:
         """Retrive the current catalog.
 
         .. versionadded:: 0.0.8
@@ -961,8 +949,7 @@ class Connection:
         if self.get("catalog show") is None:
             return None
 
-        with tempfile.NamedTemporaryFile(prefix="ds9samp",
-                                         suffix=".rdb") as fh:
+        with tempfile.NamedTemporaryFile(prefix="ds9samp", suffix=".rdb") as fh:
             # Format options are rdb and tsv. My inital tests with rdb
             # showed a mis-match between DS9 and AstroPy so go with
             # tsv.
@@ -970,7 +957,7 @@ class Connection:
             cmd = f"catalog export tsv {fh.name}"
             self.set(cmd, timeout=timeout)
 
-            tbl = Table.read(fh, format="ascii.csv", delimiter='\t')
+            tbl = Table.read(fh, format="ascii.csv", delimiter="\t")
 
         # We could return the Table or convert to FITS. Leave as a
         # table for now.
@@ -1032,9 +1019,9 @@ def np_to_array(img: np.ndarray) -> str:
 
     # Is this needed?
     match img.dtype.byteorder:
-        case '<':
+        case "<":
             opts.append("arch=little")
-        case '>':
+        case ">":
             opts.append("arch=big")
         case _:  # handle native and not-applicable
             pass
@@ -1113,10 +1100,9 @@ def bitpix_to_dtype(bpix: int) -> np.dtype | None:
             return None
 
 
-def start(name: str | None = None,
-          desc: str | None = None,
-          client: str | None = None
-          ) -> Connection:
+def start(
+    name: str | None = None, desc: str | None = None, client: str | None = None
+) -> Connection:
     """Set up the SAMP connection.
 
     This checks that a DS9 instance exists and is connected to
@@ -1145,8 +1131,9 @@ def start(name: str | None = None,
 
     name = "ds9samp" if name is None else name
     desc = "Client created by ds9samp" if desc is None else desc
-    ds9 = samp.SAMPIntegratedClient(name=name, description=desc,
-                                    metadata={"ds9samp.version": VERSION})
+    ds9 = samp.SAMPIntegratedClient(
+        name=name, description=desc, metadata={"ds9samp.version": VERSION}
+    )
 
     ds9.connect()
 
@@ -1162,8 +1149,7 @@ def start(name: str | None = None,
 
     if len(names) == 0:
         ds9.disconnect()
-        raise OSError("Unable to find a SAMP client that "
-                      "supports ds9.get/set")
+        raise OSError("Unable to find a SAMP client that supports ds9.get/set")
 
     # For now require a single connection, since it makes the
     # processing of calls a lot easier. Unfortunately there's no easy
@@ -1181,7 +1167,9 @@ def start(name: str | None = None,
     else:
         if len(names) > 1:
             ds9.disconnect()
-            raise OSError("Unable to support multiple DS9 SAMP clients. Try setting the client parameter.")
+            raise OSError(
+                "Unable to support multiple DS9 SAMP clients. Try setting the client parameter."
+            )
 
         clname = names.pop()
 
@@ -1208,10 +1196,9 @@ def end(connection: Connection) -> None:
 
 
 @contextmanager
-def ds9samp(name: str | None = None,
-            desc: str | None = None,
-            client: str | None = None
-            ) -> Connection:
+def ds9samp(
+    name: str | None = None, desc: str | None = None, client: str | None = None
+) -> Connection:
     """Set up the SAMP connection.
 
     This checks that a DS9 instance exists and is connected to
@@ -1259,9 +1246,11 @@ def list_ds9() -> list[str]:
 
     """
 
-    temp = samp.SAMPIntegratedClient(name="ds9samp-list",
-                                     description="Identify DS9 clients",
-                                     metadata={"ds9samp-list.version": VERSION})
+    temp = samp.SAMPIntegratedClient(
+        name="ds9samp-list",
+        description="Identify DS9 clients",
+        metadata={"ds9samp-list.version": VERSION},
+    )
     temp.connect()
     try:
         gkeys = temp.get_subscribed_clients("ds9.get").keys()
