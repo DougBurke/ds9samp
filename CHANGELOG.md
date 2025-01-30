@@ -1,5 +1,9 @@
 # Changes for ds9samp
 
+## Version 0.0.9 - 2025-01-30
+
+Minor linting changes. There is no change to functionality.
+
 ## Version 0.0.8 - 2025-01-30
 
 Added the `send_cat` and `retrieve_cat` methods to allow you to

@@ -616,10 +616,15 @@ class Connection:
                 raise ValueError("z axis must have size 3 when cube argument is set")
 
             match cube:
-                case Cube.RGB: action = "rgb"
-                case Cube.HLS: action = "hls"
-                case Cube.HSV: action = "hsv"
-                case _: raise ValueError(f"Invalid argument: cube={cube}")
+                case Cube.RGB:
+                    action = "rgb"
+                case Cube.HLS:
+                    action = "hls"
+                case Cube.HSV:
+                    action = "hsv"
+
+                case _:
+                    raise ValueError(f"Invalid argument: cube={cube}")
 
         # Create a frame if necessary, since otherwise the ARRAY call
         # will fail.
@@ -856,7 +861,7 @@ class Connection:
             return None
 
         if not res.path.endswith(".fits"):
-            warning(f"expected file url to end in .fits")
+            warning("expected file url to end in .fits")
 
         return fits.open(res.path)
 
@@ -1088,14 +1093,21 @@ def bitpix_to_dtype(bpix: int) -> np.dtype | None:
     """
 
     match bpix:
-        case -64: return np.dtype("float64")
-        case -32: return np.dtype("float32")
-        case -16: return np.dtype("float16")
+        case -64:
+            return np.dtype("float64")
+        case -32:
+            return np.dtype("float32")
+        case -16:
+            return np.dtype("float16")
 
-        case 64: return np.dtype("int64")
-        case 32: return np.dtype("int32")
-        case 16: return np.dtype("int16")
-        case 8: return np.dtype("int8")
+        case 64:
+            return np.dtype("int64")
+        case 32:
+            return np.dtype("int32")
+        case 16:
+            return np.dtype("int16")
+        case 8:
+            return np.dtype("int8")
 
         case _:
             return None
