@@ -355,6 +355,58 @@ class Connection:
 
         return f"Connection to DS9 {version} (client {self.client})"
 
+    def _get(self,
+            command: str,
+            timeout: int | None = None
+            ) -> str | dict[str, str]:
+        """Call ds9.get for the given command and arguments.
+
+        If the call fails then an error message is displayed (to
+        stdout) and None is returned. This call will raise an error if
+        there is a SAMP commmunication problem.
+
+        Parameters
+        ----------
+        command
+           The DS9 command to call, e.g. "cmap"
+        timeout: optional
+           Over-ride the default timeout setting. Use 0 to remove
+           any timeout.
+
+        Returns
+        -------
+        retval
+           The dictionary represents the 'samp.result' field of the
+           query, and may be empty.
+
+        """
+
+        tout = self.timeout if timeout is None else timeout
+        tout_str = str(int(tout))
+        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
+                                      timeout=tout_str, cmd=command)
+
+        if self.debug:
+            # Can we display the output in a structured form?
+            debug(f"ds9.get {command} timeout={tout_str}")
+            debug(str(out))
+
+        status = out["samp.status"]
+        if status != "samp.ok":
+            evals = out["samp.error"]
+            try:
+                emsg = f"DS9 reported: {evals['samp.errortxt']}"
+            except KeyError:
+                emsg = "Unknown DS9 error"
+
+            if status == "samp.error":
+                error(emsg)
+                return None
+
+            warning(emsg)
+
+        return out["samp.result"]
+
     def get(self,
             command: str,
             timeout: int | None = None
@@ -386,36 +438,12 @@ class Connection:
 
         """
 
-        tout = self.timeout if timeout is None else timeout
-        tout_str = str(int(tout))
-        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
-                                      timeout=tout_str, cmd=command)
-
-        if self.debug:
-            # Can we display the output in a structured form?
-            debug(f"ds9.get {command} timeout={tout_str}")
-            debug(str(out))
-
-        status = out["samp.status"]
-        if status != "samp.ok":
-            evals = out["samp.error"]
-            try:
-                emsg = f"DS9 reported: {evals['samp.errortxt']}"
-            except KeyError:
-                emsg = "Unknown DS9 error"
-
-            if status == "samp.error":
-                error(emsg)
-                return None
-
-            warning(emsg)
-
         # The result is assumed to be one of:
         #  - the value field
         #  - the url field
         #  - otherwise we just return None
         #
-        result = out["samp.result"]
+        result = self._get(command=command, timeout=timeout)
         value = result.get("value")
         if value is not None:
             return value
@@ -431,7 +459,6 @@ class Connection:
             return extract_url(url)
 
         return None
-
 
     def set(self,
             command: str,
@@ -814,38 +841,10 @@ class Connection:
 
         """
 
-        # TODO: need to abstract this behaviour rather than replicate
-        # most of the get method.
-        #
-        command = "fits"
-        tout = self.timeout if timeout is None else timeout
-        tout_str = str(int(tout))
-        out = self.ds9.ecall_and_wait(self.client, "ds9.get",
-                                      timeout=tout_str, cmd=command)
-
-        if self.debug:
-            # Can we display the output in a structured form?
-            debug(f"ds9.get {command} timeout={tout_str}")
-            debug(str(out))
-
-        status = out["samp.status"]
-        if status != "samp.ok":
-            evals = out["samp.error"]
-            try:
-                emsg = f"DS9 reported: {evals['samp.errortxt']}"
-            except KeyError:
-                emsg = "Unknown DS9 error"
-
-            if status == "samp.error":
-                error(emsg)
-                return None
-
-            warning(emsg)
-
         # The result is assumed to be given by the url field.
         # Any other response is an error.
         #
-        result = out["samp.result"]
+        result = self._get(command="fits", timeout=timeout)
         url = result.get("url")
         if url is None:
             error("SAMP call returned unexpected data")

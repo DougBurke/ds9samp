@@ -7,6 +7,9 @@ send and retrieve catalogs. Catalogs can be sent as AstroPy
 [tables](https://docs.astropy.org/en/stable/table/index.html) or
 [FITS tables](https://docs.astropy.org/en/stable/io/fits/index.html).
 
+Cleaned up code introduced in version 0.0.7. There should be no
+functional change, but the code just looks better.
+
 ## Version 0.0.7 - 2025-01-29
 
 Added the `send_fits` and `retrieve_fits` methods to allow you to
