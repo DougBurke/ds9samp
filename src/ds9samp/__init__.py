@@ -307,7 +307,25 @@ def extract_url(url: str) -> str | None:
         error(f"expected file url, not {url}")
         return None
 
-    if res.path.endswith(".dat"):
+    # Look at all the DS9 samp commands at
+    # https://ds9.si.edu/doc/ref/samp.html
+    # that have an example of "string url = ds9.get(string cmd):
+    #
+    #   command     suffix     encoding
+    #   -------     ------     --------
+    #   array       .arr       binary
+    #   data        .dat.dat   ascii
+    #   pixeltable  .pix.txt   ascii
+    #   region      .reg.rgn   ascii
+    #
+    # Not included on this page are
+    #
+    #   command     suffix     encoding
+    #   -------     ------     --------
+    #   fits        .fits      FITS
+    #
+    #
+    if any(res.path.endswith(f".{end}") for end in ["dat", "rgn", "txt"]):
         # What's the best encoding?
         with open(res.path, mode="rt", encoding="ascii") as fh:
             return fh.read()
@@ -318,6 +336,10 @@ def extract_url(url: str) -> str | None:
         #
         # return fits.open(res.path)
         error("Unable to convert FITS file to a string")
+        return None
+
+    if res.path.endswith(".arr"):
+        error("Unable to convert binary file to a string")
         return None
 
     error(f"Unable to determine contents of {url}")
@@ -348,14 +370,16 @@ class Connection:
 
         return f"Connection to DS9 {version} (client {self.client})"
 
-    def _get(
+    def get_raw(
         self, command: str, timeout: int | None = None
-    ) -> str | dict[str, str]:
+    ) -> dict[str, str] | None:
         """Call ds9.get for the given command and arguments.
 
         If the call fails then an error message is displayed (to
         stdout) and None is returned. This call will raise an error if
         there is a SAMP commmunication problem.
+
+        .. versionadded:: 0.1.0
 
         Parameters
         ----------
@@ -369,7 +393,12 @@ class Connection:
         -------
         retval
            The dictionary represents the 'samp.result' field of the
-           query, and may be empty.
+           query, and may be empty. It will be None if there was an
+           error with the call.
+
+        See Also
+        --------
+        get
 
         """
 
@@ -426,6 +455,10 @@ class Connection:
            The return value, as a string, or None if there was no
            return value.
 
+        See Also
+        --------
+        get_raw, set
+
         """
 
         # The result is assumed to be one of:
@@ -433,7 +466,10 @@ class Connection:
         #  - the url field
         #  - otherwise we just return None
         #
-        result = self._get(command=command, timeout=timeout)
+        result = self.get_raw(command=command, timeout=timeout)
+        if result is None:
+            return None
+
         value = result.get("value")
         if value is not None:
             return value
@@ -446,6 +482,10 @@ class Connection:
             if self.debug:
                 debug(f"DS9 returned data in URL={url}")
 
+            # Should there be a mapping for the commands to say which
+            # are ones we want to read the URL and for those where it
+            # is probably not sensible?
+            #
             return extract_url(url)
 
         return None
@@ -465,6 +505,10 @@ class Connection:
         timeout: optional
            Over-ride the default timeout setting. Use 0 to remove
            any timeout.
+
+        See Also
+        --------
+        set
 
         """
 
@@ -837,7 +881,10 @@ class Connection:
         # The result is assumed to be given by the url field.
         # Any other response is an error.
         #
-        result = self._get(command="fits", timeout=timeout)
+        result = self.get_raw(command="fits", timeout=timeout)
+        if result is None:
+            return None
+
         url = result.get("url")
         if url is None:
             error("SAMP call returned unexpected data")
@@ -916,7 +963,9 @@ class Connection:
                         "data mut be a table, not image(s)"
                     ) from None
 
-                data.writeto(fh, overwrite=True, output_verify="fix+warn")
+                data.writeto(
+                    fh, overwrite=True, output_verify="fix+warn", checksum=True
+                )
 
             cmd = f"catalog import fits {fh.name}"
             self.set(cmd, timeout=timeout)

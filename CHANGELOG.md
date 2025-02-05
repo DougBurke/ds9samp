@@ -1,10 +1,12 @@
 # Changes for ds9samp
 
-## Version 0.0.9 - 2025-01-30
+## Version 0.1.0 - 2025-02-05
 
-Minor linting changes. There is no change to functionality.
+Add the `get_raw` routine which does not try to read in the data
+stored in the URL response. Improved the handling of data from the
+DATA, PIXELTABLE, and REGION commands (when used with `get`).
 
-Let's try ruff for code formatting.
+Let's try ruff for linting and code formatting.
 
 ## Version 0.0.8 - 2025-01-30
 
