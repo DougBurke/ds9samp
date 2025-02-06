@@ -541,11 +541,16 @@ class Connection:
         # These values should convert, so do not try to improve the
         # error handling.
         #
-        def convert(arg):
-            val = self.get(f"fits {arg}", timeout=timeout)
-            if val is None:
+        def convert(arg: str) -> int:
+            result = self.get_raw(f"fits {arg}", timeout=timeout)
+            if result is None:
                 return 0
-            return int(val)
+
+            value = result.get("value")
+            if value is None:
+                return 0
+
+            return int(value)
 
         bitpix = convert("bitpix")
         nx = convert("width")
