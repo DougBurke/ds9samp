@@ -1,10 +1,13 @@
 # Changes for ds9samp
 
-## Version 0.1.0 - 2025-02-05
+## Version 0.1.0 - 2025-02-06
 
 Add the `get_raw` routine which does not try to read in the data
 stored in the URL response. Improved the handling of data from the
-DATA, PIXELTABLE, and REGION commands (when used with `get`).
+DATA, PIXELTABLE, and REGION commands (when used with `get`) by
+returning a FITS HDUList or NumPy array instead of a string. Added the
+`get_image_info` method to return basic information about the current
+image.
 
 Let's try ruff for linting and code formatting.
 

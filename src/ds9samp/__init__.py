@@ -31,8 +31,8 @@ the DS9 instance:
         ds9.set("zscale")
         ds9.set("cmap viridis")
 
-The get method will return a value (as a string or None if there is
-no response).
+The get method will return a value (as a string, FITS HDUList, NumPy
+array, or None if there is no response).
 
 Syntax errors are displayed as a screen message (to stdout) but they
 do not stop the connection. Lower-level errors - such as the DS9
@@ -155,9 +155,11 @@ with a command like
 """
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
 import importlib.metadata
 import os
+from pathlib import Path
 import sys
 import tempfile
 from typing import Protocol
@@ -200,6 +202,16 @@ class Cube(Enum):
 
     HSV = 3
     "Data is stored in Hue, Saturation, Value order."
+
+
+@dataclass(frozen=True)
+class ImgInfo:
+    """Metadata about the image."""
+
+    dtype: np.dtype
+    """The datatype."""
+    shape: tuple[int, ...]
+    """The size of the image. It is expected to be 2D or 3D."""
 
 
 def add_color(txt):
@@ -289,7 +301,16 @@ def warning(msg: str) -> None:
     print(f"{lhs} {msg}")
 
 
-def extract_url(url: str) -> str | None:
+def read_array(path: str | Path, img: ImgInfo) -> np.ndarray:
+    """Read in an array from a file."""
+
+    fp = np.memmap(path, mode="r", dtype=img.dtype, shape=img.shape)
+    return fp[:]
+
+
+def extract_url(
+    url: str, img: ImgInfo | None
+) -> str | np.ndarray | fits.HDUList | None:
     """Read in the URL and return the values.
 
     It relies on heuristics to determine the type of the data pointed
@@ -331,16 +352,14 @@ def extract_url(url: str) -> str | None:
             return fh.read()
 
     if res.path.endswith(".fits"):
-        # Should this extract the data (assuming the input is an
-        # image)? Also, how do we convert to a string?
-        #
-        # return fits.open(res.path)
-        error("Unable to convert FITS file to a string")
-        return None
+        return fits.open(res.path)
 
     if res.path.endswith(".arr"):
-        error("Unable to convert binary file to a string")
-        return None
+        if img is None:
+            error("Sent array but no image data")
+            return None
+
+        return read_array(res.path, img)
 
     error(f"Unable to determine contents of {url}")
     return None
@@ -429,7 +448,9 @@ class Connection:
 
         return out["samp.result"]
 
-    def get(self, command: str, timeout: int | None = None) -> str | None:
+    def get(
+        self, command: str, timeout: int | None = None
+    ) -> str | np.ndarray | fits.HDUList | None:
         """Call ds9.get for the given command and arguments.
 
         If the call fails then an error message is displayed (to
@@ -482,13 +503,72 @@ class Connection:
             if self.debug:
                 debug(f"DS9 returned data in URL={url}")
 
-            # Should there be a mapping for the commands to say which
-            # are ones we want to read the URL and for those where it
-            # is probably not sensible?
+            # In order to interpret the data from an array call
+            # we need extra information. This would be easier if
+            # it was sent in-band (i.e. as part of the response).
+            # Are there other cases it is needed?
             #
-            return extract_url(url)
+            if command.startswith("array"):
+                img = self.get_image_info(timeout=timeout)
+                if img is None:
+                    # Return an empty array
+                    return np.zeros(0)
+
+            else:
+                img = None
+
+            return extract_url(url, img=img)
 
         return None
+
+    def get_image_info(self, timeout: int | None = None) -> ImgInfo | None:
+        """Return information on the current image.
+
+        Parameters
+        ----------
+        timeout: optional
+           Over-ride the default timeout setting. Use 0 to remove
+           any timeout.
+
+        Returns
+        -------
+        img
+           A structure describing the current image, or None if
+           there is none.
+
+        """
+
+        # These values should convert, so do not try to improve the
+        # error handling.
+        #
+        def convert(arg):
+            val = self.get(f"fits {arg}", timeout=timeout)
+            if val is None:
+                return 0
+            return int(val)
+
+        bitpix = convert("bitpix")
+        nx = convert("width")
+        ny = convert("height")
+        nz = convert("depth")
+
+        if nx == 0 or ny == 0:
+            return None
+
+        dtype = bitpix_to_dtype(bitpix)
+        if dtype is None:
+            if self.debug:
+                debug(f"Unsupported BITPIX: {bitpix}")
+
+            return None
+
+        shape: tuple[int, ...]
+        if nz > 1:
+            shape = (nz, ny, nx)
+        else:
+            shape = (ny, nx)
+
+        return ImgInfo(dtype, shape)
 
     def set(self, command: str, timeout: int | None = None) -> None:
         """Call ds9.set for the given command and arguments.
@@ -746,41 +826,17 @@ class Connection:
         # Get the data information before creating the temporary file.
         # Do we have to worry about WCS messing around with the units?
         #
-        # These values should convert, so do not try to improve the
-        # error handling.
-        #
-        def convert(arg):
-            val = self.get(f"fits {arg}")
-            if val is None:
-                return 0
-            return int(val)
-
-        bitpix = convert("bitpix")
-        nx = convert("width")
-        ny = convert("height")
-        nz = convert("depth")
-
-        if nx == 0 or ny == 0:
+        img = self.get_image_info(timeout=timeout)
+        if img is None:
+            # We could return an empty array, but is it worth it?
             error("DS9 appears to contain no data")
             return None
-
-        dtype = bitpix_to_dtype(bitpix)
-        if dtype is None:
-            error(f"Unsupported BITPIX: {bitpix}")
-            return None
-
-        shape: tuple[int, ...]
-        if nz > 1:
-            shape = (nz, ny, nx)
-        else:
-            shape = (ny, nx)
 
         with tempfile.NamedTemporaryFile(prefix="ds9samp", suffix=".arr") as fh:
             cmd = f"export array {fh.name} native"
             self.set(cmd, timeout=timeout)
 
-            fp = np.memmap(fh.name, dtype=dtype, mode="r", shape=shape)
-            out = fp[:]
+            out = read_array(fh.name, img)
 
         return out
 
